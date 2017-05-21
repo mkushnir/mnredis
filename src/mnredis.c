@@ -369,21 +369,21 @@ mnredis_request_fini(mnredis_request_t *req)
 /*
  * pack
  */
-ssize_t
+UNUSED static ssize_t
 mnredis_pack_int(mnbytestream_t *bs, int64_t v)
 {
     return bytestream_nprintf(bs, 64, ":%ld\r\n", v);
 }
 
 
-ssize_t
+static ssize_t
 mnredis_pack_alen(mnbytestream_t *bs, int64_t v)
 {
     return bytestream_nprintf(bs, 64, "*%ld\r\n", v);
 }
 
 
-ssize_t
+static ssize_t
 mnredis_pack_bstrz(mnbytestream_t *bs, mnbytes_t *v)
 {
     assert(v != NULL);
@@ -395,7 +395,7 @@ mnredis_pack_bstrz(mnbytestream_t *bs, mnbytes_t *v)
 }
 
 
-ssize_t
+UNUSED static ssize_t
 mnredis_pack_bstr(mnbytestream_t *bs, mnbytes_t *v)
 {
     assert(v != NULL);

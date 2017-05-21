@@ -84,19 +84,6 @@ typedef struct _mnredis_ctx {
 } mnredis_ctx_t;
 
 
-
-
-
-ssize_t mnredis_unpack_int(mnbytestream_t *, int64_t *);
-ssize_t mnredis_unpack_str(mnbytestream_t *, mnbytes_t **);
-ssize_t mnredis_unpack_array(mnbytestream_t *, mnarray_t *);
-ssize_t mnredis_pack_int(mnbytestream_t *, int64_t);
-ssize_t mnredis_pack_sstr(mnbytestream_t *, mnbytes_t *);
-ssize_t mnredis_pack_bstr(mnbytestream_t *, mnbytes_t *);
-ssize_t mnredis_pack_bstrz(mnbytestream_t *, mnbytes_t *);
-ssize_t mnredis_pack_array(mnbytestream_t *, mnbytes_t *);
-
-
 void mnredis_ctx_init(mnredis_ctx_t *, mnbytes_t *, mnbytes_t *, size_t);
 int mnredis_ctx_connect(mnredis_ctx_t *);
 
@@ -113,7 +100,7 @@ int mnredis_getset(mnredis_ctx_t *, mnbytes_t *, mnbytes_t *, mnbytes_t **);
 int mnredis_del(mnredis_ctx_t *, mnbytes_t *);
 int mnredis_exists(mnredis_ctx_t *, mnbytes_t *, int64_t *);
 
-int mnredis_quit(mnredis_ctx_t *);
+//int mnredis_quit(mnredis_ctx_t *);
 
 void mnredis_ctx_fini(mnredis_ctx_t *);
 
