@@ -20,7 +20,9 @@
 const char *_malloc_options = "AJ";
 #endif
 
-static mnbytes_t _localhost = BYTES_INITIALIZER("localhost");
+UNUSED static mnbytes_t _localhost = BYTES_INITIALIZER("localhost");
+UNUSED static mnbytes_t _vmpear_103 = BYTES_INITIALIZER("10.1.3.103");
+#define TEST_REDIS _vmpear_103
 static mnbytes_t _6379 = BYTES_INITIALIZER("6379");
 
 
@@ -54,7 +56,7 @@ test0(void)
     };
     UNITTEST_PROLOG_RAND;
 
-    mnredis_ctx_init(&ctx, &_localhost, &_6379, 1024);
+    mnredis_ctx_init(&ctx, &TEST_REDIS, &_6379, 1024);
     if (mnredis_ctx_connect(&ctx) != 0) {
         FAIL("mnredis_connect");
     }
@@ -102,14 +104,18 @@ test1(void)
     };
     UNITTEST_PROLOG_RAND;
 
-    mnredis_ctx_init(&ctx, &_localhost, &_6379, 1024);
+    mnredis_ctx_init(&ctx, &TEST_REDIS, &_6379, 1024);
     if (mnredis_ctx_connect(&ctx) != 0) {
         FAIL("mnredis_connect");
     }
     FOREACHDATA {
         int res;
-        res = mnredis_append(&ctx, CDATA.key, CDATA.value);
-        TRACE("key=%s value=%s", BDATASAFE(CDATA.key), BDATASAFE(CDATA.value));
+        int64_t rv;
+        res = mnredis_append(&ctx, CDATA.key, CDATA.value, &rv);
+        TRACE("key=%s value=%s len=%ld",
+              BDATASAFE(CDATA.key),
+              BDATASAFE(CDATA.value),
+              rv);
         assert(res == CDATA.expected);
     }
     mnredis_ctx_fini(&ctx);
@@ -139,24 +145,25 @@ test2(void)
     };
     UNITTEST_PROLOG_RAND;
 
-    mnredis_ctx_init(&ctx, &_localhost, &_6379, 1024);
+    mnredis_ctx_init(&ctx, &TEST_REDIS, &_6379, 1024);
     if (mnredis_ctx_connect(&ctx) != 0) {
         FAIL("mnredis_connect");
     }
     FOREACHDATA {
         int res;
         mnbytes_t *rv;
+        int64_t irv;
 
         if (CDATA.value != NULL) {
-            res = mnredis_set(&ctx, CDATA.key, CDATA.value);
+            res = mnredis_set(&ctx, CDATA.key, CDATA.value, 0);
             assert(res == 0);
         } else {
             res = mnredis_del(&ctx, CDATA.key);
             assert(res == 0);
         }
-        res = mnredis_incr(&ctx, CDATA.key);
+        res = mnredis_incr(&ctx, CDATA.key, &irv);
         assert(res == CDATA.expected);
-        res = mnredis_decr(&ctx, CDATA.key);
+        res = mnredis_decr(&ctx, CDATA.key, &irv);
         assert(res == CDATA.expected);
         rv = NULL;
         res = mnredis_get(&ctx, CDATA.key, &rv);
@@ -183,7 +190,7 @@ test3(void)
         {0, asd, NULL, 0},
     };
     UNITTEST_PROLOG_RAND;
-    mnredis_ctx_init(&ctx, &_localhost, &_6379, 1024);
+    mnredis_ctx_init(&ctx, &TEST_REDIS, &_6379, 1024);
     if (mnredis_ctx_connect(&ctx) != 0) {
         FAIL("mnredis_connect");
     }
@@ -194,7 +201,7 @@ test3(void)
         if (CDATA.value == NULL) {
             res = mnredis_del(&ctx, CDATA.key);
         } else {
-            res = mnredis_set(&ctx, CDATA.key, CDATA.value);
+            res = mnredis_set(&ctx, CDATA.key, CDATA.value, 0);
         }
         assert(res == 0);
         res = mnredis_exists(&ctx, CDATA.key, &rv);
@@ -223,7 +230,7 @@ test4(void)
         {0, three, two},
     };
     UNITTEST_PROLOG;
-    mnredis_ctx_init(&ctx, &_localhost, &_6379, 1024);
+    mnredis_ctx_init(&ctx, &TEST_REDIS, &_6379, 1024);
     if (mnredis_ctx_connect(&ctx) != 0) {
         FAIL("mnredis_connect");
     }
@@ -255,7 +262,9 @@ _test5(UNUSED int argc, UNUSED void **argv)
     m = (int)(intptr_t)argv[2];
 
     for (i = 0; i < m; ++i) {
-        res = mnredis_incr(ctx, key);
+        int64_t rv;
+
+        res = mnredis_incr(ctx, key, &rv);
         assert(res == 0);
         ++_test5_i;
         //if (mrkthr_yield() != 0) {
@@ -280,14 +289,14 @@ test5(void)
     } data[] = {
     };
     UNITTEST_PROLOG;
-    mnredis_ctx_init(&ctx, &_localhost, &_6379, 4096);
+    mnredis_ctx_init(&ctx, &TEST_REDIS, &_6379, 4096);
     if (mnredis_ctx_connect(&ctx) != 0) {
         FAIL("mnredis_connect");
     }
     res = mnredis_del(&ctx, qwe);
     assert(res == 0);
 #define TEST5_N 100
-#define TEST5_M 100
+#define TEST5_M 100000
     for (i = 0; i < TEST5_N; ++i) {
         MRKTHR_SPAWN(NULL, _test5, &ctx, qwe, (void *)(intptr_t)TEST5_M);
     }
@@ -295,9 +304,7 @@ test5(void)
         mnbytes_t *rv;
 
         rv = NULL;
-        CTRACE("get:");
         res = mnredis_get(&ctx, qwe, &rv);
-        CTRACE("res=%s", mnredis_diag_str(res));
         //assert(res == 0);
         if (rv != NULL) {
             n = strtoimax((char *)BDATA(rv), NULL, 10);
