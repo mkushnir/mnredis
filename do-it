@@ -1,0 +1,65 @@
+#!/bin/sh
+
+# On Linux: apt-get install autotools-dev autoconf libtool
+#
+if test "$1" = "init"
+then
+    export LDFLAGS="-L$HOME/lib -L/usr/local/lib"
+    export CFLAGS="-I$HOME/include -I/usr/local/include"
+    #autoreconf --force --install
+    autoreconf --force
+    aclocal
+    autoheader
+    autoreconf
+    automake --add-missing
+    libtoolize
+    make distclean
+    autoreconf
+    ./configure --prefix=$HOME --enable-debug
+
+elif test "$1" = "dev"
+then
+    export LDFLAGS="-L$HOME/lib -L/usr/local/lib"
+    export CFLAGS="-I$HOME/include -I/usr/local/include"
+    autoreconf --force
+    ./configure --prefix=$HOME --enable-debug
+
+elif test "$1" = "dev-ndebug"
+then
+    export LDFLAGS="-L$HOME/lib -L/usr/local/lib"
+    export CFLAGS="-I$HOME/include -I/usr/local/include"
+    autoreconf --force
+    ./configure --prefix=$HOME
+
+elif test "$1" = "dist"
+then
+    unset LDFLAGS
+    unset CFLAGS
+    autoreconf --force
+    ./configure
+
+    if test -d port
+    then
+        if test -f port/distinfo
+        then
+            truncate -s0 port/distinfo
+        fi
+        if test -d /data2/mkushnir/distfiles
+        then
+            for i in *.tar.gz
+            do
+                cp -v $i /data2/mkushnir/distfiles/
+                if test -f port/distinfo
+                then
+                    /sbin/sha256 $i >port/distinfo
+                    echo "SIZE ($i) = `stat -f%z $i`" >>port/distinfo
+                fi
+            done
+        fi
+    fi
+elif test "$1" = "du"
+then
+    find . -type f -name '*.[ch]' -ls | awk '{print $7;}' | (n=0; while read a; do n=$((n + a)); done; echo $n)
+else
+    echo "`basename $0` {init|dev|dist|dev-ndebug|du}"
+fi

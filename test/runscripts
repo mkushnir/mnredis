@@ -1,0 +1,17 @@
+#!/bin/sh
+
+align() {
+    python -c "import time; ts=time.time();tts=$1-(ts%$1);print 'Sleeping for %s seconds...'%tts;time.sleep(tts);print time.time()"
+}
+
+out() {
+    echo `date -u` $*
+}
+
+align 10
+
+out one
+sleep 3
+out two
+sleep 1
+out Exiting ...
