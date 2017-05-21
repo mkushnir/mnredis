@@ -14,6 +14,7 @@
 #include <mrkcommon/bytes.h>
 #include <mrkcommon/bytestream.h>
 #include <mrkcommon/stqueue.h>
+#include <mrkcommon/util.h>
 
 #include <mrkthr.h>
 
@@ -103,6 +104,23 @@ int mnredis_set(mnredis_ctx_t *, mnbytes_t *, mnbytes_t *, uint64_t);
 int mnredis_getset(mnredis_ctx_t *, mnbytes_t *, mnbytes_t *, mnbytes_t **);
 int mnredis_del(mnredis_ctx_t *, mnbytes_t *);
 int mnredis_exists(mnredis_ctx_t *, mnbytes_t *, int64_t *);
+int mnredis_strlen(mnredis_ctx_t *, mnbytes_t *, int64_t *);
+
+int mnredis_hdel(mnredis_ctx_t *, mnbytes_t *, int, ...);
+#define MNREDIS_HDEL(ctx, key, ...) \
+    mnredis_hdel(ctx, key, MRKASZ(__VA_ARGS__), ##__VA_ARGS__)
+int mnredis_hexists(mnredis_ctx_t *, mnbytes_t *, mnbytes_t *, int64_t *);
+int mnredis_hget(mnredis_ctx_t *, mnbytes_t *, mnbytes_t *, mnbytes_t **);
+int mnredis_hincrby(mnredis_ctx_t *, mnbytes_t *, mnbytes_t *, int64_t, int64_t *);
+int mnredis_hlen(mnredis_ctx_t *, mnbytes_t *, int64_t *);
+int mnredis_hmget(mnredis_ctx_t *, mnarray_t **, mnbytes_t *, int, ...);
+#define MNREDIS_HMGET(ctx, rv, key, ...) \
+    mnredis_hmget(ctx, rv, key, MRKASZ(__VA_ARGS__), ##__VA_ARGS__)
+int mnredis_hmset(mnredis_ctx_t *, mnbytes_t *, int, ...);
+#define MNREDIS_HMSET(ctx, key, ...) \
+    mnredis_hmget(ctx, key, MRKASZ(__VA_ARGS__), ##__VA_ARGS__)
+int mnredis_hset(mnredis_ctx_t *, mnbytes_t *, mnbytes_t *, mnbytes_t *, int64_t *);
+int mnredis_hstrlen(mnredis_ctx_t *, mnbytes_t *, mnbytes_t *, int64_t *);
 
 //int mnredis_quit(mnredis_ctx_t *);
 
