@@ -87,15 +87,19 @@ typedef struct _mnredis_ctx {
 void mnredis_ctx_init(mnredis_ctx_t *, mnbytes_t *, mnbytes_t *, size_t);
 int mnredis_ctx_connect(mnredis_ctx_t *);
 
-#define MNREDIS_COMMAND_ERROR 0x8001
+#define MNREDIS_COMMAND_ERROR   (0x8001)
 int mnredis_select(mnredis_ctx_t *, int);
 int mnredis_echo(mnredis_ctx_t *, mnbytes_t *, mnbytes_t **);
 int mnredis_ping(mnredis_ctx_t *);
-int mnredis_append(mnredis_ctx_t *, mnbytes_t *, mnbytes_t *);
-int mnredis_decr(mnredis_ctx_t *, mnbytes_t *);
-int mnredis_incr(mnredis_ctx_t *, mnbytes_t *);
+int mnredis_append(mnredis_ctx_t *, mnbytes_t *, mnbytes_t *, int64_t *);
+int mnredis_decr(mnredis_ctx_t *, mnbytes_t *, int64_t *);
+int mnredis_incr(mnredis_ctx_t *, mnbytes_t *, int64_t *);
 int mnredis_get(mnredis_ctx_t *, mnbytes_t *, mnbytes_t **);
-int mnredis_set(mnredis_ctx_t *, mnbytes_t *, mnbytes_t *);
+#define MNREDIS_NX          (0x0000000100000000ul)
+#define MNREDIS_XX          (0x0000000200000000ul)
+#define MNREDIS_EXPIRE_MASK (0x00000000fffffffful)
+#define MNREDIS_SET_PRECOND_FAIL    (0x8002)
+int mnredis_set(mnredis_ctx_t *, mnbytes_t *, mnbytes_t *, uint64_t);
 int mnredis_getset(mnredis_ctx_t *, mnbytes_t *, mnbytes_t *, mnbytes_t **);
 int mnredis_del(mnredis_ctx_t *, mnbytes_t *);
 int mnredis_exists(mnredis_ctx_t *, mnbytes_t *, int64_t *);
