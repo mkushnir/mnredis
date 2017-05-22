@@ -64,7 +64,7 @@ mnredis_value_dump(mnredis_value_t *val, int level)
         break;
 
     case MNREDIS_TINT:
-        LTRACE(level, "<int %ld>", val->v.i);
+        LTRACE(level, "<int %ld>", (long)val->v.i);
         break;
 
     case MNREDIS_TARRAY:
@@ -622,7 +622,7 @@ mnredis_set(mnredis_ctx_t *ctx,
             BYTES_INCREF(*a);
             a = array_get(&req.args, req.args.elnum + 1);
             assert(a != NULL);
-            *a = bytes_printf("%ld", (flags & (~MNREDIS_EXPIRE_MASK)));
+            *a = bytes_printf("%ld", (long)(flags & (~MNREDIS_EXPIRE_MASK)));
             BYTES_INCREF(*a);
         }
         if (flags & MNREDIS_NX) {
@@ -870,7 +870,7 @@ mnredis_hincrby(mnredis_ctx_t *ctx,
                 int64_t value,
                 int64_t *rv)
 {
-    mnbytes_t *s = bytes_printf("%ld", value);
+    mnbytes_t *s = bytes_printf("%ld", (long)value);
     BYTES_INCREF(s);
     mnbytes_t *args[] = { &_hincrby, key, field, s, };
 

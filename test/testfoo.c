@@ -115,7 +115,7 @@ test1(void)
         TRACE("key=%s value=%s len=%ld",
               BDATASAFE(CDATA.key),
               BDATASAFE(CDATA.value),
-              rv);
+              (long)rv);
         assert(res == CDATA.expected);
     }
     mnredis_ctx_fini(&ctx);
