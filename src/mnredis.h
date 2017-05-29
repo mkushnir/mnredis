@@ -77,7 +77,7 @@ typedef struct _mnredis_connection {
     mnbytestream_t out;
     mrkthr_sema_t sema;
     STQUEUE(_mnredis_request, requests_out);
-    STQUEUE(_mnredis_request, requests);
+    STQUEUE(_mnredis_request, requests_in);
 } mnredis_connection_t;
 
 typedef struct _mnredis_ctx {

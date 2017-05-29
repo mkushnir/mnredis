@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <limits.h>
-#include <inttypes.h> /* strtoimax() */
+#include <inttypes.h> /* strtoimax() PRI* */
 #include <sys/socket.h>
 
 //#define TRRET_DEBUG
@@ -357,11 +357,11 @@ static void
 mnredis_request_init(mnredis_request_t *req, size_t nargs)
 {
     STQUEUE_ENTRY_INIT(link, req);
-    if (array_init(&req->args,
-                   sizeof(mnbytes_t *),
-                   nargs,
-                   NULL,
-                   (array_finalizer_t)bytes_decref) != 0) {
+    if (MRKUNLIKELY(array_init(&req->args,
+                               sizeof(mnbytes_t *),
+                               nargs,
+                               NULL,
+                               (array_finalizer_t)bytes_decref) != 0)) {
         FAIL("array_init");
     }
     MRKTHR_SIGNAL_INIT(&req->recv_signal);
@@ -377,6 +377,32 @@ mnredis_request_fini(mnredis_request_t *req)
     (void)array_fini(&req->args);
     mnredis_response_destroy(&req->resp);
 }
+
+
+static mnredis_request_t *
+mnredis_request_new(size_t nargs)
+{
+    mnredis_request_t *res;
+
+    if (MRKUNLIKELY((res = malloc(sizeof(mnredis_request_t))) == NULL)) {
+        FAIL("malloc");
+    }
+    mnredis_request_init(res, nargs);
+
+    return res;
+}
+
+
+static void
+mnredis_request_destroy(mnredis_request_t **req)
+{
+    if (*req != NULL) {
+        mnredis_request_fini(*req);
+        free(*req);
+        *req = NULL;
+    }
+}
+
 
 
 /*
@@ -441,10 +467,10 @@ end:
 
 
 #define _MNREDIS_CMD_STATIC_ARGS               \
-    mnredis_request_init(&req, countof(args)); \
-    for (a = array_first(&req.args, &it);      \
+    req = mnredis_request_new(countof(args));  \
+    for (a = array_first(&req->args, &it);     \
          a != NULL;                            \
-         a = array_next(&req.args, &it)) {     \
+         a = array_next(&req->args, &it)) {    \
         *a = args[it.iter];                    \
         BYTES_INCREF(*a);                      \
     }                                          \
@@ -452,18 +478,18 @@ end:
 
 #define _MNREDIS_CMD_VA_ARGS                           \
     assert(nargs > 0 && nargs <= MRKMAXASZ);           \
-    mnredis_request_init(&req, countof(args) + nargs); \
+    req = mnredis_request_new(countof(args) + nargs);  \
     va_list ap;                                        \
-    for (a = array_first(&req.args, &it);              \
+    for (a = array_first(&req->args, &it);             \
          it.iter < countof(args);                      \
-         a = array_next(&req.args, &it)) {             \
+         a = array_next(&req->args, &it)) {            \
         *a = args[it.iter];                            \
         BYTES_INCREF(*a);                              \
     }                                                  \
     va_start(ap, nargs);                               \
-    for (a = array_next(&req.args, &it);               \
+    for (a = array_next(&req->args, &it);              \
          a != NULL;                                    \
-         a = array_next(&req.args, &it)) {             \
+         a = array_next(&req->args, &it)) {            \
         *a = va_arg(ap, mnbytes_t *);                  \
         BYTES_INCREF(*a);                              \
     }                                                  \
@@ -473,7 +499,7 @@ end:
 
 #define _MNREDIS_CMD_BODY(__args, ecode, __a0, __a1)                   \
     int res;                                                           \
-    mnredis_request_t req;                                             \
+    mnredis_request_t *req;                                            \
     mnbytes_t **a;                                                     \
     mnarray_iter_t it;                                                 \
     res = 0;                                                           \
@@ -481,14 +507,18 @@ end:
     /*                                                                 \
      * first enqueue, then signal the write end                        \
      */                                                                \
-    STQUEUE_ENQUEUE(&ctx->conn.requests_out, link, &req);              \
+    STQUEUE_ENQUEUE(&ctx->conn.requests_out, link, req);               \
     mrkthr_signal_send(&ctx->conn.send_signal);                        \
-    if (MRKUNLIKELY(mrkthr_signal_subscribe(&req.recv_signal) != 0)) { \
+    if ((res = mrkthr_signal_subscribe(&req->recv_signal)) != 0) {     \
+        /*                                                             \
+         * leaving req to mnredis_recv_thread_worker()                 \
+         */                                                            \
+        assert(!mrkthr_signal_has_owner(&req->recv_signal));           \
         res = ecode + 3;                                               \
-        goto end;                                                      \
+        goto end1;                                                     \
     }                                                                  \
-    if (req.resp != NULL) {                                            \
-        if (req.resp->val.ty == MNREDIS_TERR) {                        \
+    if (req->resp != NULL) {                                           \
+        if (req->resp->val.ty == MNREDIS_TERR) {                       \
             res = MNREDIS_COMMAND_ERROR;                               \
         } else {                                                       \
             __a0                                                       \
@@ -496,8 +526,9 @@ end:
     } else {                                                           \
         CTRACE("resp was NULL");                                       \
     }                                                                  \
-end:                                                                   \
-    mnredis_request_fini(&req);                                        \
+end0:                                                                  \
+    mnredis_request_destroy(&req);                                     \
+end1:                                                                  \
     __a1                                                               \
     TRRET(res);                                                        \
 
@@ -510,9 +541,9 @@ mnredis_ping(mnredis_ctx_t *ctx)
 {
     mnbytes_t *args[] = { &_ping, };
     MNREDIS_CMD_BODY(MNREDIS_PING,
-        if (req.resp->val.ty != MNREDIS_TSSTR) {
+        if (req->resp->val.ty != MNREDIS_TSSTR) {
             res = MNREDIS_PING + 10;
-            goto end;
+            goto end0;
         }
     );
 }
@@ -523,11 +554,11 @@ mnredis_echo(mnredis_ctx_t *ctx, mnbytes_t *s, mnbytes_t **rv)
 {
     mnbytes_t *args[] = { &_echo, s, };
     MNREDIS_CMD_BODY(MNREDIS_ECHO,
-        if (req.resp->val.ty != MNREDIS_TBSTR) {
+        if (req->resp->val.ty != MNREDIS_TBSTR) {
             res = MNREDIS_ECHO + 10;
-            goto end;
+            goto end0;
         }
-        *rv = req.resp->val.v.s;
+        *rv = req->resp->val.v.s;
         if (*rv != NULL) {
             BYTES_INCREF(*rv);
         }
@@ -544,9 +575,9 @@ mnredis_select(mnredis_ctx_t *ctx, int n)
     _MNREDIS_CMD_BODY(
         _MNREDIS_CMD_STATIC_ARGS,
         MNREDIS_SELECT,
-        if (req.resp->val.ty != MNREDIS_TSSTR) {
+        if (req->resp->val.ty != MNREDIS_TSSTR) {
             res = MNREDIS_SELECT + 10;
-            goto end;
+            goto end0;
         },
         BYTES_DECREF(&s);
     );
@@ -561,11 +592,11 @@ mnredis_append(mnredis_ctx_t *ctx,
 {
     mnbytes_t *args[] = { &_append, key, value, };
     MNREDIS_CMD_BODY(MNREDIS_APPEND,
-        if (req.resp->val.ty != MNREDIS_TINT) {
+        if (req->resp->val.ty != MNREDIS_TINT) {
             res = MNREDIS_APPEND + 10;
-            goto end;
+            goto end0;
         }
-        *rv = req.resp->val.v.i;
+        *rv = req->resp->val.v.i;
     );
 }
 
@@ -575,11 +606,11 @@ mnredis_decr(mnredis_ctx_t *ctx, mnbytes_t *key, int64_t *rv)
 {
     mnbytes_t *args[] = { &_decr, key, };
     MNREDIS_CMD_BODY(MNREDIS_DECR,
-        if (req.resp->val.ty != MNREDIS_TINT) {
+        if (req->resp->val.ty != MNREDIS_TINT) {
             res = MNREDIS_DECR + 10;
-            goto end;
+            goto end0;
         }
-        *rv = req.resp->val.v.i;
+        *rv = req->resp->val.v.i;
     );
 }
 
@@ -589,11 +620,11 @@ mnredis_incr(mnredis_ctx_t *ctx, mnbytes_t *key, int64_t *rv)
 {
     mnbytes_t *args[] = { &_incr, key, };
     MNREDIS_CMD_BODY(MNREDIS_INCR,
-        if (req.resp->val.ty != MNREDIS_TINT) {
+        if (req->resp->val.ty != MNREDIS_TINT) {
             res = MNREDIS_INCR + 10;
-            goto end;
+            goto end0;
         }
-        *rv = req.resp->val.v.i;
+        *rv = req->resp->val.v.i;
     );
 }
 
@@ -611,29 +642,29 @@ mnredis_set(mnredis_ctx_t *ctx,
         if (flags & MNREDIS_EXPIRE_MASK) {
             mnbytes_t **a;
 
-            if (MRKUNLIKELY(array_ensure_len(&req.args,
-                                             req.args.elnum + 2,
+            if (MRKUNLIKELY(array_ensure_len(&req->args,
+                                             req->args.elnum + 2,
                                              ARRAY_FLAG_SAVE) != 0)) {
                 FAIL("array_incr");
             }
-            a = array_get(&req.args, req.args.elnum);
+            a = array_get(&req->args, req->args.elnum - 2);
             assert(a != NULL);
             *a = &_px;
             BYTES_INCREF(*a);
-            a = array_get(&req.args, req.args.elnum + 1);
+            a = array_get(&req->args, req->args.elnum - 1);
             assert(a != NULL);
-            *a = bytes_printf("%ld", (long)(flags & (~MNREDIS_EXPIRE_MASK)));
+            *a = bytes_printf("%ld", (long)(flags & MNREDIS_EXPIRE_MASK));
             BYTES_INCREF(*a);
         }
         if (flags & MNREDIS_NX) {
             mnbytes_t **a;
 
-            if (MRKUNLIKELY(array_ensure_len(&req.args,
-                                             req.args.elnum + 1,
+            if (MRKUNLIKELY(array_ensure_len(&req->args,
+                                             req->args.elnum + 1,
                                              ARRAY_FLAG_SAVE) != 0)) {
                 FAIL("array_incr");
             }
-            a = array_get(&req.args, req.args.elnum);
+            a = array_get(&req->args, req->args.elnum - 1);
             assert(a != NULL);
             *a = &_nx;
             BYTES_INCREF(*a);
@@ -641,12 +672,12 @@ mnredis_set(mnredis_ctx_t *ctx,
         if (flags & MNREDIS_XX) {
             mnbytes_t **a;
 
-            if (MRKUNLIKELY(array_ensure_len(&req.args,
-                                             req.args.elnum + 1,
+            if (MRKUNLIKELY(array_ensure_len(&req->args,
+                                             req->args.elnum + 1,
                                              ARRAY_FLAG_SAVE) != 0)) {
                 FAIL("array_incr");
             }
-            a = array_get(&req.args, req.args.elnum);
+            a = array_get(&req->args, req->args.elnum - 1);
             assert(a != NULL);
             *a = &_xx;
             BYTES_INCREF(*a);
@@ -657,14 +688,14 @@ mnredis_set(mnredis_ctx_t *ctx,
         /*
          * https://redis.io/commands/set
          */
-        if (req.resp->val.ty == MNREDIS_TSSTR) {
+        if (req->resp->val.ty == MNREDIS_TSSTR) {
             /* ok */
-        } else if ((req.resp->val.ty == MNREDIS_TBSTR) &&
-                   (req.resp->val.v.s == NULL)) {
+        } else if ((req->resp->val.ty == MNREDIS_TBSTR) &&
+                   (req->resp->val.v.s == NULL)) {
             res = MNREDIS_SET_PRECOND_FAIL;
         } else {
             res = MNREDIS_SET + 10;
-            goto end;
+            goto end0;
         },
 
     );
@@ -676,11 +707,11 @@ mnredis_get(mnredis_ctx_t *ctx, mnbytes_t *key, mnbytes_t **rv)
 {
     mnbytes_t *args[] = { &_get, key, };
     MNREDIS_CMD_BODY(MNREDIS_GET,
-        if (req.resp->val.ty != MNREDIS_TBSTR) {
+        if (req->resp->val.ty != MNREDIS_TBSTR) {
             res = MNREDIS_GET + 10;
-            goto end;
+            goto end0;
         } else {
-            *rv = req.resp->val.v.s;
+            *rv = req->resp->val.v.s;
             if (*rv != NULL) {
                 BYTES_INCREF(*rv);
             }
@@ -697,12 +728,11 @@ mnredis_getset(mnredis_ctx_t *ctx,
 {
     mnbytes_t *args[] = { &_getset, key, value, };
     MNREDIS_CMD_BODY(MNREDIS_GETSET,
-        /* XXX validate reult */
-        if (req.resp->val.ty != MNREDIS_TBSTR) {
+        if (req->resp->val.ty != MNREDIS_TBSTR) {
             res = MNREDIS_GETSET + 10;
-            goto end;
+            goto end0;
         } else {
-            *rv = req.resp->val.v.s;
+            *rv = req->resp->val.v.s;
             if (*rv != NULL) {
                 BYTES_INCREF(*rv);
             }
@@ -716,9 +746,9 @@ mnredis_del(mnredis_ctx_t *ctx, mnbytes_t *key)
 {
     mnbytes_t *args[] = { &_del, key, };
     MNREDIS_CMD_BODY(MNREDIS_DEL,
-        if (req.resp->val.ty != MNREDIS_TINT) {
+        if (req->resp->val.ty != MNREDIS_TINT) {
             res = MNREDIS_DEL + 10;
-            goto end;
+            goto end0;
         }
     );
 }
@@ -729,11 +759,11 @@ mnredis_exists(mnredis_ctx_t *ctx, mnbytes_t *key, int64_t *rv)
 {
     mnbytes_t *args[] = { &_exists, key, };
     MNREDIS_CMD_BODY(MNREDIS_EXISTS,
-        if (req.resp->val.ty != MNREDIS_TINT) {
+        if (req->resp->val.ty != MNREDIS_TINT) {
             res = MNREDIS_EXISTS + 10;
-            goto end;
+            goto end0;
         }
-        *rv = req.resp->val.v.i;
+        *rv = req->resp->val.v.i;
     );
 }
 
@@ -743,11 +773,11 @@ mnredis_strlen(mnredis_ctx_t *ctx, mnbytes_t *key, int64_t *rv)
 {
     mnbytes_t *args[] = { &_strlen, key, };
     MNREDIS_CMD_BODY(MNREDIS_STRLEN,
-        if (req.resp->val.ty != MNREDIS_TINT) {
+        if (req->resp->val.ty != MNREDIS_TINT) {
             res = MNREDIS_STRLEN + 10;
-            goto end;
+            goto end0;
         }
-        *rv = req.resp->val.v.i;
+        *rv = req->resp->val.v.i;
     );
 }
 
@@ -759,9 +789,9 @@ mnredis_hdel(mnredis_ctx_t *ctx, mnbytes_t *key, int nargs, ...)
     _MNREDIS_CMD_BODY(
         _MNREDIS_CMD_VA_ARGS,
         MNREDIS_HDEL_,
-        if (req.resp->val.ty != MNREDIS_TINT) {
+        if (req->resp->val.ty != MNREDIS_TINT) {
             res = MNREDIS_HDEL_ + 10;
-            goto end;
+            goto end0;
         },
     );
 }
@@ -772,11 +802,11 @@ mnredis_hexists(mnredis_ctx_t *ctx, mnbytes_t *key, mnbytes_t *field, int64_t *r
 {
     mnbytes_t *args[] = { &_hexists, key, field, };
     MNREDIS_CMD_BODY(MNREDIS_HEXISTS,
-        if (req.resp->val.ty != MNREDIS_TINT) {
+        if (req->resp->val.ty != MNREDIS_TINT) {
             res = MNREDIS_HEXISTS + 10;
-            goto end;
+            goto end0;
         }
-        *rv = req.resp->val.v.i;
+        *rv = req->resp->val.v.i;
     );
 }
 
@@ -786,11 +816,11 @@ mnredis_hget(mnredis_ctx_t *ctx, mnbytes_t *key, mnbytes_t *field, mnbytes_t **r
 {
     mnbytes_t *args[] = { &_hget, key, field, };
     MNREDIS_CMD_BODY(MNREDIS_HGET,
-        if (req.resp->val.ty != MNREDIS_TBSTR) {
+        if (req->resp->val.ty != MNREDIS_TBSTR) {
             res = MNREDIS_HGET + 10;
-            goto end;
+            goto end0;
         }
-        *rv = req.resp->val.v.s;
+        *rv = req->resp->val.v.s;
         if (*rv != NULL) {
             BYTES_INCREF(*rv);
         }
@@ -803,11 +833,11 @@ mnredis_hlen(mnredis_ctx_t *ctx, mnbytes_t *key, int64_t *rv)
 {
     mnbytes_t *args[] = { &_hlen, key, };
     MNREDIS_CMD_BODY(MNREDIS_HLEN,
-        if (req.resp->val.ty != MNREDIS_TINT) {
+        if (req->resp->val.ty != MNREDIS_TINT) {
             res = MNREDIS_HLEN + 10;
-            goto end;
+            goto end0;
         }
-        *rv = req.resp->val.v.i;
+        *rv = req->resp->val.v.i;
     );
 }
 
@@ -819,12 +849,12 @@ mnredis_hmget(mnredis_ctx_t *ctx, mnarray_t **rv, mnbytes_t *key, int nargs, ...
     _MNREDIS_CMD_BODY(
         _MNREDIS_CMD_VA_ARGS,
         MNREDIS_HMGET_,
-        if (req.resp->val.ty != MNREDIS_TARRAY) {
+        if (req->resp->val.ty != MNREDIS_TARRAY) {
             res = MNREDIS_HMGET_ + 10;
-            goto end;
+            goto end0;
         }
-        *rv = req.resp->val.v.a;
-        req.resp->val.v.a = NULL;,
+        *rv = req->resp->val.v.a;
+        req->resp->val.v.a = NULL;,
 
     );
 }
@@ -837,9 +867,9 @@ mnredis_hmset(mnredis_ctx_t *ctx, mnbytes_t *key, int nargs, ...)
     _MNREDIS_CMD_BODY(
         _MNREDIS_CMD_VA_ARGS,
         MNREDIS_HMSET_,
-        if (req.resp->val.ty != MNREDIS_TSSTR) {
+        if (req->resp->val.ty != MNREDIS_TSSTR) {
             res = MNREDIS_HMSET_ + 10;
-            goto end;
+            goto end0;
         },
     );
 }
@@ -854,11 +884,11 @@ mnredis_hset(mnredis_ctx_t *ctx,
 {
     mnbytes_t *args[] = { &_hset, key, field, value, };
     MNREDIS_CMD_BODY(MNREDIS_HSET,
-        if (req.resp->val.ty != MNREDIS_TINT) {
+        if (req->resp->val.ty != MNREDIS_TINT) {
             res = MNREDIS_HSET + 10;
-            goto end;
+            goto end0;
         }
-        *rv = req.resp->val.v.i;
+        *rv = req->resp->val.v.i;
     );
 }
 
@@ -878,11 +908,11 @@ mnredis_hincrby(mnredis_ctx_t *ctx,
     _MNREDIS_CMD_BODY(
         _MNREDIS_CMD_STATIC_ARGS,
         MNREDIS_HINCRBY,
-        if (req.resp->val.ty != MNREDIS_TINT) {
+        if (req->resp->val.ty != MNREDIS_TINT) {
             res = MNREDIS_HINCRBY + 10;
-            goto end;
+            goto end0;
         }
-        *rv = req.resp->val.v.i;,
+        *rv = req->resp->val.v.i;,
         BYTES_DECREF(&s);
     );
 }
@@ -896,11 +926,11 @@ mnredis_hstrlen(mnredis_ctx_t *ctx,
 {
     mnbytes_t *args[] = { &_hstrlen, key, field, };
     MNREDIS_CMD_BODY(MNREDIS_HSTRLEN,
-        if (req.resp->val.ty != MNREDIS_TINT) {
+        if (req->resp->val.ty != MNREDIS_TINT) {
             res = MNREDIS_HSTRLEN + 10;
-            goto end;
+            goto end0;
         }
-        *rv = req.resp->val.v.i;
+        *rv = req->resp->val.v.i;
     );
 }
 
@@ -929,7 +959,7 @@ mnredis_send_thread_worker(UNUSED int argc, UNUSED void **argv)
 
             STQUEUE_DEQUEUE(&ctx->conn.requests_out, link);
             STQUEUE_ENTRY_FINI(link, req);
-            STQUEUE_ENQUEUE(&ctx->conn.requests, link, req);
+            STQUEUE_ENQUEUE(&ctx->conn.requests_in, link, req);
 
             if (MRKUNLIKELY(
                     mnredis_pack_alen(&ctx->conn.out,
@@ -989,20 +1019,27 @@ mnredis_recv_thread_worker(UNUSED int argc, UNUSED void **argv)
             /**/
         }
         recycled = bytestream_recycle(&ctx->conn.in, 1, SPOS(&ctx->conn.in));
-        if (MRKUNLIKELY((req = STQUEUE_HEAD(&ctx->conn.requests)) == NULL)) {
+        if (MRKUNLIKELY((req = STQUEUE_HEAD(&ctx->conn.requests_in)) == NULL)) {
             /*
              * response without request?
              */
             CTRACE("response without request?");
             mnredis_response_destroy(&resp);
         } else {
-            STQUEUE_DEQUEUE(&ctx->conn.requests, link);
+            STQUEUE_DEQUEUE(&ctx->conn.requests_in, link);
             /*
              * leave it to mnredis_request_fini()?
              */
             //STQUEUE_ENTRY_FINI(link, req);
             req->resp = resp;
-            mrkthr_signal_send(&req->recv_signal);
+            if (mrkthr_signal_has_owner(&req->recv_signal)) {
+                mrkthr_signal_send(&req->recv_signal);
+            } else {
+                /*
+                 * no owver, request timed out?
+                 */
+                mnredis_request_destroy(&req);
+            }
         }
     }
 
@@ -1054,8 +1091,8 @@ mnredis_ctx_fini(mnredis_ctx_t *ctx)
         mrkthr_signal_error_and_join(&req->recv_signal, MNREDIS_CTX_FINI + 1);
     }
 
-    while ((req = STQUEUE_HEAD(&ctx->conn.requests)) != NULL) {
-        STQUEUE_DEQUEUE(&ctx->conn.requests, link);
+    while ((req = STQUEUE_HEAD(&ctx->conn.requests_in)) != NULL) {
+        STQUEUE_DEQUEUE(&ctx->conn.requests_in, link);
         mrkthr_signal_error_and_join(&req->recv_signal, MNREDIS_CTX_FINI + 1);
     }
 
@@ -1105,5 +1142,5 @@ mnredis_ctx_init(mnredis_ctx_t *ctx,
     }
     ctx->conn.out.write = mrkthr_bytestream_write;
     STQUEUE_INIT(&ctx->conn.requests_out);
-    STQUEUE_INIT(&ctx->conn.requests);
+    STQUEUE_INIT(&ctx->conn.requests_in);
 }

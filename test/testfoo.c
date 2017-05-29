@@ -20,9 +20,9 @@
 const char *_malloc_options = "AJ";
 #endif
 
-UNUSED static mnbytes_t _localhost = BYTES_INITIALIZER("localhost");
+UNUSED static mnbytes_t _localhost = BYTES_INITIALIZER("127.0.0.1");
 UNUSED static mnbytes_t _vmpear_103 = BYTES_INITIALIZER("10.1.3.103");
-#define TEST_REDIS _vmpear_103
+#define TEST_REDIS _localhost
 static mnbytes_t _6379 = BYTES_INITIALIZER("6379");
 
 
@@ -36,7 +36,7 @@ myinfo(UNUSED int sig)
 }
 
 
-static void
+UNUSED static void
 test0(void)
 {
     mnredis_ctx_t ctx;
@@ -80,7 +80,7 @@ test0(void)
     mnredis_ctx_fini(&ctx);
 }
 
-static void
+UNUSED static void
 test1(void)
 {
     mnredis_ctx_t ctx;
@@ -122,7 +122,7 @@ test1(void)
 }
 
 
-static void
+UNUSED static void
 test2(void)
 {
     mnredis_ctx_t ctx;
@@ -174,7 +174,7 @@ test2(void)
 }
 
 
-static void
+UNUSED static void
 test3(void)
 {
     mnredis_ctx_t ctx;
@@ -211,7 +211,7 @@ test3(void)
 }
 
 
-static void
+UNUSED static void
 test4(void)
 {
     int res;
@@ -275,7 +275,9 @@ _test5(UNUSED int argc, UNUSED void **argv)
 }
 
 
-static void
+#define TEST5_N 100
+#define TEST5_M 100
+UNUSED static void
 test5(void)
 {
     int res;
@@ -295,8 +297,6 @@ test5(void)
     }
     res = mnredis_del(&ctx, qwe);
     assert(res == 0);
-#define TEST5_N 100
-#define TEST5_M 100000
     for (i = 0; i < TEST5_N; ++i) {
         MRKTHR_SPAWN(NULL, _test5, &ctx, qwe, (void *)(intptr_t)TEST5_M);
     }
@@ -322,6 +322,157 @@ test5(void)
 
 
 static int
+_mnredis_set(UNUSED int argc, UNUSED void **argv)
+{
+    int res;
+    mnredis_ctx_t *ctx;
+    mnbytes_t *key;
+    mnbytes_t *value;
+    uint64_t flags;
+
+    assert(argc == 4);
+    ctx = argv[0];
+    key = argv[1];
+    value = argv[2];
+    flags = (uintptr_t)argv[3];
+
+    res = mnredis_set(ctx, key, value, flags);
+    MRKTHRET(res);
+}
+
+
+static int
+_mnredis_get(UNUSED int argc, UNUSED void **argv)
+{
+    int res;
+    mnredis_ctx_t *ctx;
+    mnbytes_t *key;
+    mnbytes_t **rv;
+
+    assert(argc == 3);
+    ctx = argv[0];
+    key = argv[1];
+    rv = argv[2];
+
+    res = mnredis_get(ctx, key, rv);
+    MRKTHRET(res);
+}
+
+
+UNUSED static void
+test6(void)
+{
+    int res;
+    mnredis_ctx_t ctx;
+    BYTES_ALLOCA(qwe, "qwe");
+    BYTES_ALLOCA(asd, "asd");
+    mnbytes_t *rv;
+
+    mnredis_ctx_init(&ctx, &TEST_REDIS, &_6379, 4096);
+
+    if (mnredis_ctx_connect(&ctx) != 0) {
+        FAIL("mnredis_connect");
+    }
+
+    res = mnredis_del(&ctx, qwe);
+    assert(res == 0);
+
+    rv = NULL;
+    res = MRKTHR_WAIT_FOR(1000, NULL, _mnredis_get, &ctx, qwe, &rv);
+    CTRACE("res=%d rv=%s", res, BDATASAFE(rv));
+    BYTES_DECREF(&rv);
+
+    res = MRKTHR_WAIT_FOR(1000,
+                          NULL,
+                          _mnredis_set,
+                          &ctx,
+                          qwe,
+                          asd,
+                          (void *)(uintptr_t)0);
+    CTRACE("res=%d", res);
+
+    rv = NULL;
+    res = MRKTHR_WAIT_FOR(1000, NULL, _mnredis_get, &ctx, qwe, &rv);
+    CTRACE("res=%d rv=%s", res, BDATASAFE(rv));
+    BYTES_DECREF(&rv);
+
+    mnredis_ctx_fini(&ctx);
+}
+
+
+static int _test7_i = 0;
+#define TEST7_N TEST5_N
+#define TEST7_M TEST5_M
+static int
+_test7(UNUSED int argc, UNUSED void **argv)
+{
+    UNUSED int res;
+    UNUSED int i, n, m;
+    mnredis_ctx_t *ctx;
+    mnbytes_t *key;
+
+    ctx = argv[0];
+    key = argv[1];
+    n = (int)(intptr_t)argv[2];
+    m = (int)(intptr_t)argv[3];
+
+    for (i = 0; i < m; ++i) {
+        mnbytes_t *k;
+
+        k = bytes_printf("%s:%016x", BDATA(key), TEST7_N * n + i);
+        BYTES_INCREF(k);
+
+        res = mnredis_del(ctx, k);
+        assert(res == 0);
+        res = mnredis_set(ctx, k, k, 100000);
+        //CTRACE("k=%s res=%d", BDATA(k), res);
+        //if (res == MNREDIS_SET_PRECOND_FAIL) {
+        //    CTRACE("MNREDIS_SET_PRECOND_FAIL");
+        //}
+
+        assert(res == 0);
+
+        BYTES_DECREF(&k);
+        ++_test7_i;
+        //if (mrkthr_yield() != 0) {
+        //    break;
+        //}
+    }
+    return 0;
+}
+
+
+static void
+test7(void)
+{
+    int res, i;
+    mnredis_ctx_t ctx;
+    BYTES_ALLOCA(qwe, "qwe");
+
+    mnredis_ctx_init(&ctx, &TEST_REDIS, &_6379, 4096);
+    if (mnredis_ctx_connect(&ctx) != 0) {
+        FAIL("mnredis_connect");
+    }
+    res = mnredis_del(&ctx, qwe);
+    assert(res == 0);
+
+    for (i = 0; i < TEST7_N; ++i) {
+        MRKTHR_SPAWN(NULL,
+                     _test7,
+                     &ctx,
+                     qwe,
+                     (void *)(intptr_t)i,
+                     (void *)(intptr_t)TEST7_M);
+    }
+    while (_test7_i != TEST7_N * TEST7_M) {
+        mrkthr_sleep(1000);
+        CTRACE("_test7_i=%d", _test7_i);
+    }
+    mnredis_ctx_fini(&ctx);
+}
+
+
+static int
 run0(UNUSED int argc, UNUSED void **argv)
 {
     test0();
@@ -330,6 +481,8 @@ run0(UNUSED int argc, UNUSED void **argv)
     test3();
     test4();
     test5();
+    test6();
+    test7();
     return 0;
 }
 
@@ -337,6 +490,9 @@ run0(UNUSED int argc, UNUSED void **argv)
 int
 main(void)
 {
+    if (signal(SIGPIPE, SIG_IGN) == SIG_ERR) {
+        return 1;
+    }
 #ifdef SIGINFO
     if (signal(SIGINFO, myinfo) == SIG_ERR) {
         return 1;
