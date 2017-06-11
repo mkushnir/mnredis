@@ -42,6 +42,7 @@ struct _mnredis_error {
 #define MNREDIS_TINT    MNREDIS_TY(MNREDIS_INT)
 #define MNREDIS_TARRAY  MNREDIS_TY(MNREDIS_ARRAY)
 
+#define MNREDIS_MSEC2SEC(ms)((int64_t)((ms) / 1000 + ((ms) % 1000 ? 1 : 0)))
 
 typedef struct _mnredis_value {
     union {
@@ -111,7 +112,11 @@ int mnredis_hdel(mnredis_ctx_t *, mnbytes_t *, int, ...);
     mnredis_hdel(ctx, key, MRKASZ(__VA_ARGS__), ##__VA_ARGS__)
 int mnredis_hexists(mnredis_ctx_t *, mnbytes_t *, mnbytes_t *, int64_t *);
 int mnredis_hget(mnredis_ctx_t *, mnbytes_t *, mnbytes_t *, mnbytes_t **);
-int mnredis_hincrby(mnredis_ctx_t *, mnbytes_t *, mnbytes_t *, int64_t, int64_t *);
+int mnredis_hincrby(mnredis_ctx_t *,
+                    mnbytes_t *,
+                    mnbytes_t *,
+                    int64_t,
+                    int64_t *);
 int mnredis_hlen(mnredis_ctx_t *, mnbytes_t *, int64_t *);
 int mnredis_hmget(mnredis_ctx_t *, mnarray_t **, mnbytes_t *, int, ...);
 #define MNREDIS_HMGET(ctx, rv, key, ...) \
@@ -119,8 +124,70 @@ int mnredis_hmget(mnredis_ctx_t *, mnarray_t **, mnbytes_t *, int, ...);
 int mnredis_hmset(mnredis_ctx_t *, mnbytes_t *, int, ...);
 #define MNREDIS_HMSET(ctx, key, ...) \
     mnredis_hmget(ctx, key, MRKASZ(__VA_ARGS__), ##__VA_ARGS__)
-int mnredis_hset(mnredis_ctx_t *, mnbytes_t *, mnbytes_t *, mnbytes_t *, int64_t *);
+int mnredis_hset(mnredis_ctx_t *,
+                 mnbytes_t *,
+                 mnbytes_t *,
+                 mnbytes_t *,
+                 int64_t *);
 int mnredis_hstrlen(mnredis_ctx_t *, mnbytes_t *, mnbytes_t *, int64_t *);
+int mnredis_blpop(mnredis_ctx_t *, mnbytes_t **, mnbytes_t **, int, ...);
+#define MNREDIS_BLPOP(ctx, rk, rv, ...) \
+    mnredis_blpop(ctx, rk, rv,  MRKASZ(__VA_ARGS__), ##__VA_ARGS__)
+int mnredis_brpop(mnredis_ctx_t *, mnbytes_t **, mnbytes_t **, int, ...);
+#define MNREDIS_BRPOP(ctx, rk, rv, ...) \
+    mnredis_brpop(ctx, rk, rv,  MRKASZ(__VA_ARGS__), ##__VA_ARGS__)
+int mnredis_brpoplpush(mnredis_ctx_t *,
+                       mnbytes_t *,
+                       mnbytes_t *,
+                       int64_t,
+                       mnbytes_t **);
+int mnredis_rpoplpush(mnredis_ctx_t *,
+                      mnbytes_t *,
+                      mnbytes_t *,
+                      mnbytes_t **);
+int mnredis_lindex(mnredis_ctx_t *, mnbytes_t *, int64_t, mnbytes_t **);
+int mnredis_linsert(mnredis_ctx_t *,
+                    mnbytes_t *,
+                    mnbytes_t *,
+                    mnbytes_t *,
+                    mnbytes_t *,
+                    int64_t *);
+int mnredis_linsert_before(mnredis_ctx_t *,
+                           mnbytes_t *,
+                           mnbytes_t *,
+                           mnbytes_t *,
+                           int64_t *);
+int mnredis_linsert_after(mnredis_ctx_t *,
+                          mnbytes_t *,
+                          mnbytes_t *,
+                          mnbytes_t *,
+                          int64_t *);
+int mnredis_llen(mnredis_ctx_t *, mnbytes_t *, int64_t *);
+int mnredis_lpop(mnredis_ctx_t *, mnbytes_t *, mnbytes_t **);
+int mnredis_rpop(mnredis_ctx_t *, mnbytes_t *, mnbytes_t **);
+int mnredis_lpush(mnredis_ctx_t *, int64_t *, mnbytes_t *, int, ...);
+#define MNREDIS_LPUSH(ctx, rv, key, ...)    \
+    mnredis_lpush(ctx, rv, key, MRKASZ(__VA_ARGS__), ##__VA_ARGS__)
+int mnredis_lpushx(mnredis_ctx_t *, mnbytes_t *, mnbytes_t *, int64_t *);
+int mnredis_rpush(mnredis_ctx_t *, int64_t *, mnbytes_t *, int, ...);
+#define MNREDIS_RPUSH(ctx, rv, key, ...)    \
+    mnredis_rpush(ctx, rv, key, MRKASZ(__VA_ARGS__), ##__VA_ARGS__)
+int mnredis_rpushx(mnredis_ctx_t *, mnbytes_t *, mnbytes_t *, int64_t *);
+int mnredis_ltrim(mnredis_ctx_t *, mnbytes_t *, int64_t, int64_t);
+int mnredis_lrange(mnredis_ctx_t *,
+                   mnbytes_t *,
+                   int64_t,
+                   int64_t,
+                   mnarray_t **);
+int mnredis_lrem(mnredis_ctx_t *,
+                 mnbytes_t *,
+                 int64_t,
+                 mnbytes_t *,
+                 int64_t *);
+int mnredis_lset(mnredis_ctx_t *,
+                 mnbytes_t *,
+                 int64_t,
+                 mnbytes_t *);
 
 //int mnredis_quit(mnredis_ctx_t *);
 

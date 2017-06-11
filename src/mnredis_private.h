@@ -17,4 +17,7 @@ extern "C" {
 #ifdef __cplusplus
 }
 #endif
+
+#include <mnredis.h>
+
 #endif /* MNREDIS_PRIVATE_H_DEFINED */

@@ -11,12 +11,11 @@
 #include <mrkcommon/dumpm.h>
 #include <mrkcommon/util.h>
 
-#include <mnredis.h>
+#include "mnredis_private.h"
 
 #include "diag.h"
 
 
-#define MNREDIS_NEEDMORE (-2)
 static mnbytes_t _echo = BYTES_INITIALIZER("ECHO");
 static mnbytes_t _ping = BYTES_INITIALIZER("PING");
 static mnbytes_t _select = BYTES_INITIALIZER("SELECT");
@@ -41,6 +40,25 @@ static mnbytes_t _hmget = BYTES_INITIALIZER("HMGET");
 static mnbytes_t _hmset = BYTES_INITIALIZER("HMSET");
 static mnbytes_t _hset = BYTES_INITIALIZER("HSET");
 static mnbytes_t _hstrlen = BYTES_INITIALIZER("HSTRLEN");
+static mnbytes_t _blpop = BYTES_INITIALIZER("BLPOP");
+static mnbytes_t _brpop = BYTES_INITIALIZER("BRPOP");
+static mnbytes_t _brpoplpush = BYTES_INITIALIZER("BRPOPLPUSH");
+static mnbytes_t _lindex = BYTES_INITIALIZER("LINDEX");
+static mnbytes_t _linsert = BYTES_INITIALIZER("LINSERT");
+static mnbytes_t _before = BYTES_INITIALIZER("BEFORE");
+static mnbytes_t _after = BYTES_INITIALIZER("AFTER");
+static mnbytes_t _llen = BYTES_INITIALIZER("LLEN");
+static mnbytes_t _lpop = BYTES_INITIALIZER("LPOP");
+static mnbytes_t _lpush = BYTES_INITIALIZER("LPUSH");
+static mnbytes_t _lpushx = BYTES_INITIALIZER("LPUSHX");
+static mnbytes_t _lrange = BYTES_INITIALIZER("LRANGE");
+static mnbytes_t _lrem = BYTES_INITIALIZER("LREM");
+static mnbytes_t _lset = BYTES_INITIALIZER("LSET");
+static mnbytes_t _ltrim = BYTES_INITIALIZER("LTRIM");
+static mnbytes_t _rpop = BYTES_INITIALIZER("RPOP");
+static mnbytes_t _rpoplpush = BYTES_INITIALIZER("RPOPLPUSH");
+static mnbytes_t _rpush = BYTES_INITIALIZER("RPUSH");
+static mnbytes_t _rpushx = BYTES_INITIALIZER("RPUSHX");
 static mnbytes_t _mnredis_error = BYTES_INITIALIZER("MNREDIS_ERROR");
 
 /*
@@ -476,7 +494,7 @@ end:
     }                                          \
 
 
-#define _MNREDIS_CMD_VA_ARGS                           \
+#define _MNREDIS_CMD_VA_ARGS0                          \
     assert(nargs > 0 && nargs <= MRKMAXASZ);           \
     req = mnredis_request_new(countof(args) + nargs);  \
     va_list ap;                                        \
@@ -494,6 +512,37 @@ end:
         BYTES_INCREF(*a);                              \
     }                                                  \
     va_end(ap);                                        \
+
+
+
+#define _MNREDIS_CMD_VA_ARGS1                                          \
+    assert(nargs > 0 && nargs <= MRKMAXASZ);                           \
+    req = mnredis_request_new(countof(args) + nargs);                  \
+    va_list ap;                                                        \
+    int64_t _mnredis_cmd_va_args1_last_int;                            \
+    mnbytes_t *_mnredis_cmd_va_args1_last_int_s;                       \
+    for (a = array_first(&req->args, &it);                             \
+         it.iter < countof(args);                                      \
+         a = array_next(&req->args, &it)) {                            \
+        *a = args[it.iter];                                            \
+        BYTES_INCREF(*a);                                              \
+    }                                                                  \
+    va_start(ap, nargs);                                               \
+    for (a = array_next(&req->args, &it);                              \
+         it.iter < req->args.elnum - 1;                                \
+         a = array_next(&req->args, &it)) {                            \
+        assert(a != NULL);                                             \
+        *a = va_arg(ap, mnbytes_t *);                                  \
+        BYTES_INCREF(*a);                                              \
+    }                                                                  \
+    _mnredis_cmd_va_args1_last_int = va_arg(ap, int64_t);              \
+    _mnredis_cmd_va_args1_last_int_s =                                 \
+        bytes_printf("%"PRId64, _mnredis_cmd_va_args1_last_int);       \
+    a = array_next(&req->args, &it);                                   \
+    *a = _mnredis_cmd_va_args1_last_int_s;                             \
+    BYTES_INCREF(*a);                                                  \
+    assert(a != NULL);                                                 \
+    va_end(ap);                                                        \
 
 
 
@@ -787,7 +836,7 @@ mnredis_hdel(mnredis_ctx_t *ctx, mnbytes_t *key, int nargs, ...)
 {
     mnbytes_t *args[] = { &_hdel, key, };
     _MNREDIS_CMD_BODY(
-        _MNREDIS_CMD_VA_ARGS,
+        _MNREDIS_CMD_VA_ARGS0,
         MNREDIS_HDEL_,
         if (req->resp->val.ty != MNREDIS_TINT) {
             res = MNREDIS_HDEL_ + 10;
@@ -847,7 +896,7 @@ mnredis_hmget(mnredis_ctx_t *ctx, mnarray_t **rv, mnbytes_t *key, int nargs, ...
 {
     mnbytes_t *args[] = { &_hmget, key, };
     _MNREDIS_CMD_BODY(
-        _MNREDIS_CMD_VA_ARGS,
+        _MNREDIS_CMD_VA_ARGS0,
         MNREDIS_HMGET_,
         if (req->resp->val.ty != MNREDIS_TARRAY) {
             res = MNREDIS_HMGET_ + 10;
@@ -865,7 +914,7 @@ mnredis_hmset(mnredis_ctx_t *ctx, mnbytes_t *key, int nargs, ...)
 {
     mnbytes_t *args[] = { &_hmset, key, };
     _MNREDIS_CMD_BODY(
-        _MNREDIS_CMD_VA_ARGS,
+        _MNREDIS_CMD_VA_ARGS0,
         MNREDIS_HMSET_,
         if (req->resp->val.ty != MNREDIS_TSSTR) {
             res = MNREDIS_HMSET_ + 10;
@@ -900,11 +949,9 @@ mnredis_hincrby(mnredis_ctx_t *ctx,
                 int64_t value,
                 int64_t *rv)
 {
-    mnbytes_t *s = bytes_printf("%ld", (long)value);
+    mnbytes_t *s = bytes_printf("%"PRId64, value);
     BYTES_INCREF(s);
     mnbytes_t *args[] = { &_hincrby, key, field, s, };
-
-
     _MNREDIS_CMD_BODY(
         _MNREDIS_CMD_STATIC_ARGS,
         MNREDIS_HINCRBY,
@@ -934,6 +981,391 @@ mnredis_hstrlen(mnredis_ctx_t *ctx,
     );
 }
 
+
+int
+mnredis_blpop(mnredis_ctx_t *ctx,
+              mnbytes_t **rk,
+              mnbytes_t **rv,
+              int nargs,
+              ...)
+{
+    mnbytes_t *args[] = { &_blpop, };
+    _MNREDIS_CMD_BODY(
+        _MNREDIS_CMD_VA_ARGS1,
+        MNREDIS_BLPOP_,
+        if (req->resp->val.ty != MNREDIS_TARRAY) {
+            res = MNREDIS_BLPOP_ + 10;
+            goto end0;
+        } else {
+            if (req->resp->val.v.a->elnum == 2) {
+                mnredis_value_t *v;
+
+                v = ARRAY_GET(mnredis_value_t, req->resp->val.v.a, 0);
+                if (v->ty == MNREDIS_TBSTR) {
+                    *rk = v->v.s;
+                    v->v.s = NULL;
+                }
+
+                v = ARRAY_GET(mnredis_value_t, req->resp->val.v.a, 1);
+                if (v->ty == MNREDIS_TBSTR) {
+                    *rv = v->v.s;
+                    v->v.s = NULL;
+                }
+            }
+        },
+    );
+}
+
+
+int
+mnredis_brpop(mnredis_ctx_t *ctx,
+              mnbytes_t **rk,
+              mnbytes_t **rv,
+              int nargs,
+              ...)
+{
+    mnbytes_t *args[] = { &_brpop, };
+    _MNREDIS_CMD_BODY(
+        _MNREDIS_CMD_VA_ARGS1,
+        MNREDIS_BRPOP_,
+        if (req->resp->val.ty != MNREDIS_TARRAY) {
+            res = MNREDIS_BRPOP_ + 10;
+            goto end0;
+        } else {
+            if (req->resp->val.v.a->elnum == 2) {
+                mnredis_value_t *v;
+
+                v = ARRAY_GET(mnredis_value_t, req->resp->val.v.a, 0);
+                if (v->ty == MNREDIS_TBSTR) {
+                    *rk = v->v.s;
+                    v->v.s = NULL;
+                }
+
+                v = ARRAY_GET(mnredis_value_t, req->resp->val.v.a, 1);
+                if (v->ty == MNREDIS_TBSTR) {
+                    *rv = v->v.s;
+                    v->v.s = NULL;
+                }
+            }
+        },
+    );
+}
+
+
+int
+mnredis_brpoplpush(mnredis_ctx_t *ctx,
+                   mnbytes_t *src,
+                   mnbytes_t *dst,
+                   int64_t timeout,
+                   mnbytes_t **rv)
+{
+    mnbytes_t *s = bytes_printf("%"PRId64, timeout);
+    BYTES_INCREF(s);
+    mnbytes_t *args[] = { &_brpoplpush, src, dst, s };
+    _MNREDIS_CMD_BODY(
+        _MNREDIS_CMD_STATIC_ARGS,
+        MNREDIS_BRPOPLPUSH,
+        if (req->resp->val.ty != MNREDIS_TBSTR) {
+            res = MNREDIS_BRPOPLPUSH + 10;
+            goto end0;
+        }
+        *rv = req->resp->val.v.s;
+        if (*rv != NULL) {
+            BYTES_INCREF(*rv);
+        },
+        BYTES_DECREF(&s);
+    );
+}
+
+
+int
+mnredis_rpoplpush(mnredis_ctx_t *ctx,
+                  mnbytes_t *src,
+                  mnbytes_t *dst,
+                  mnbytes_t **rv)
+{
+    mnbytes_t *args[] = { &_rpoplpush, src, dst };
+    MNREDIS_CMD_BODY(
+        MNREDIS_RPOPLPUSH,
+        if (req->resp->val.ty != MNREDIS_TBSTR) {
+            res = MNREDIS_RPOPLPUSH + 10;
+            goto end0;
+        }
+        *rv = req->resp->val.v.s;
+        if (*rv != NULL) {
+            BYTES_INCREF(*rv);
+        }
+    );
+}
+
+
+int
+mnredis_lindex(mnredis_ctx_t *ctx, mnbytes_t *key, int64_t idx, mnbytes_t **rv)
+{
+    mnbytes_t *s = bytes_printf("%"PRId64, idx);
+    BYTES_INCREF(s);
+    mnbytes_t *args[] = { &_lindex, key, s };
+    _MNREDIS_CMD_BODY(
+        _MNREDIS_CMD_STATIC_ARGS,
+        MNREDIS_LINDEX,
+        if (req->resp->val.ty != MNREDIS_TBSTR) {
+            res = MNREDIS_LINDEX + 10;
+            goto end0;
+        }
+        *rv = req->resp->val.v.s;
+        if (*rv != NULL) {
+            BYTES_INCREF(*rv);
+        },
+        BYTES_DECREF(&s);
+    );
+}
+
+
+int
+mnredis_linsert(mnredis_ctx_t *ctx,
+                mnbytes_t *key,
+                mnbytes_t *op,
+                mnbytes_t *pivot,
+                mnbytes_t *value,
+                int64_t *rv)
+{
+    mnbytes_t *args[] = { &_linsert, key, op, pivot, value };
+    MNREDIS_CMD_BODY(
+        MNREDIS_LINSERT,
+        if (req->resp->val.ty != MNREDIS_TINT) {
+            res = MNREDIS_LINSERT + 10;
+            goto end0;
+        }
+        *rv = req->resp->val.v.i;
+    );
+}
+
+
+int
+mnredis_insert_before(mnredis_ctx_t *ctx,
+                      mnbytes_t *key,
+                      mnbytes_t *pivot,
+                      mnbytes_t *value,
+                      int64_t *rv)
+{
+    return mnredis_linsert(ctx, key, &_before, pivot, value, rv);
+}
+
+
+int
+mnredis_insert_after(mnredis_ctx_t *ctx,
+                     mnbytes_t *key,
+                     mnbytes_t *pivot,
+                     mnbytes_t *value,
+                     int64_t *rv)
+{
+    return mnredis_linsert(ctx, key, &_after, pivot, value, rv);
+}
+
+
+int
+mnredis_llen(mnredis_ctx_t *ctx, mnbytes_t *key, int64_t *rv)
+{
+    mnbytes_t *args[] = { &_llen, key };
+    MNREDIS_CMD_BODY(
+        MNREDIS_LLEN,
+        if (req->resp->val.ty != MNREDIS_TINT) {
+            res = MNREDIS_LLEN + 10;
+            goto end0;
+        }
+        *rv = req->resp->val.v.i;
+    );
+}
+
+
+int
+mnredis_lpop(mnredis_ctx_t *ctx, mnbytes_t *key, mnbytes_t **rv)
+{
+    mnbytes_t *args[] = { &_lpop, key };
+    MNREDIS_CMD_BODY(
+        MNREDIS_LPOP,
+        if (req->resp->val.ty != MNREDIS_TBSTR) {
+            res = MNREDIS_LPOP + 10;
+            goto end0;
+        }
+        *rv = req->resp->val.v.s;
+        if (*rv != NULL) {
+            BYTES_INCREF(*rv);
+        }
+    );
+}
+
+
+int
+mnredis_rpop(mnredis_ctx_t *ctx, mnbytes_t *key, mnbytes_t **rv)
+{
+    mnbytes_t *args[] = { &_rpop, key };
+    MNREDIS_CMD_BODY(
+        MNREDIS_RPOP,
+        if (req->resp->val.ty != MNREDIS_TBSTR) {
+            res = MNREDIS_RPOP + 10;
+            goto end0;
+        }
+        *rv = req->resp->val.v.s;
+        if (*rv != NULL) {
+            BYTES_INCREF(*rv);
+        }
+    );
+}
+
+
+int
+mnredis_lpush(mnredis_ctx_t *ctx, int64_t *rv, mnbytes_t *key, int nargs, ...)
+{
+    mnbytes_t *args[] = { &_lpush, key };
+    _MNREDIS_CMD_BODY(
+        _MNREDIS_CMD_VA_ARGS0,
+        MNREDIS_LPUSH_,
+        if (req->resp->val.ty != MNREDIS_TINT) {
+            res = MNREDIS_LPUSH_ + 10;
+            goto end0;
+        }
+        *rv = req->resp->val.v.i;,
+    );
+}
+
+
+int
+mnredis_lpushx(mnredis_ctx_t *ctx, mnbytes_t *key, mnbytes_t *value, int64_t *rv)
+{
+    mnbytes_t *args[] = { &_lpushx, key, value };
+    MNREDIS_CMD_BODY(
+        MNREDIS_LPUSHX,
+        if (req->resp->val.ty != MNREDIS_TINT) {
+            res = MNREDIS_LPUSHX + 10;
+            goto end0;
+        }
+        *rv = req->resp->val.v.i;
+    );
+}
+
+
+int
+mnredis_rpush(mnredis_ctx_t *ctx, int64_t *rv, mnbytes_t *key, int nargs, ...)
+{
+    mnbytes_t *args[] = { &_rpush, key };
+    _MNREDIS_CMD_BODY(
+        _MNREDIS_CMD_VA_ARGS0,
+        MNREDIS_RPUSH_,
+        if (req->resp->val.ty != MNREDIS_TINT) {
+            res = MNREDIS_RPUSH_ + 10;
+            goto end0;
+        }
+        *rv = req->resp->val.v.i;,
+    );
+}
+
+
+int
+mnredis_rpushx(mnredis_ctx_t *ctx, mnbytes_t *key, mnbytes_t *value, int64_t *rv)
+{
+    mnbytes_t *args[] = { &_rpushx, key, value };
+    MNREDIS_CMD_BODY(
+        MNREDIS_RPUSHX,
+        if (req->resp->val.ty != MNREDIS_TINT) {
+            res = MNREDIS_RPUSHX + 10;
+            goto end0;
+        }
+        *rv = req->resp->val.v.i;
+    );
+}
+
+
+int
+mnredis_ltrim(mnredis_ctx_t *ctx, mnbytes_t *key, int64_t start, int64_t stop)
+{
+    mnbytes_t *s0 = bytes_printf("%"PRId64, start);
+    BYTES_INCREF(s0);
+    mnbytes_t *s1 = bytes_printf("%"PRId64, stop);
+    BYTES_INCREF(s1);
+    mnbytes_t *args[] = { &_ltrim, key, s0, s1 };
+    _MNREDIS_CMD_BODY(
+        _MNREDIS_CMD_STATIC_ARGS,
+        MNREDIS_LTRIM,
+        if (req->resp->val.ty != MNREDIS_TSSTR) {
+            res = MNREDIS_LINDEX + 10;
+            goto end0;
+        },
+        BYTES_DECREF(&s0);
+        BYTES_DECREF(&s1);
+    );
+}
+
+
+int
+mnredis_lrange(mnredis_ctx_t *ctx,
+               mnbytes_t *key,
+               int64_t start,
+               int64_t stop,
+               mnarray_t **rv)
+{
+    mnbytes_t *s0 = bytes_printf("%"PRId64, start);
+    BYTES_INCREF(s0);
+    mnbytes_t *s1 = bytes_printf("%"PRId64, stop);
+    BYTES_INCREF(s1);
+    mnbytes_t *args[] = { &_lrange, key, s0, s1 };
+    _MNREDIS_CMD_BODY(
+        _MNREDIS_CMD_STATIC_ARGS,
+        MNREDIS_LRANGE,
+        if (req->resp->val.ty != MNREDIS_TARRAY) {
+            res = MNREDIS_LRANGE + 10;
+            goto end0;
+        }
+        *rv = req->resp->val.v.a;
+        req->resp->val.v.a = NULL;,
+        BYTES_DECREF(&s0);
+        BYTES_DECREF(&s1);
+    );
+}
+
+
+int
+mnredis_lrem(mnredis_ctx_t *ctx,
+             mnbytes_t *key,
+             int64_t count,
+             mnbytes_t *value,
+             int64_t *rv)
+{
+    mnbytes_t *s = bytes_printf("%"PRId64, count);
+    BYTES_INCREF(s);
+    mnbytes_t *args[] = { &_lrem, key, s, value };
+    _MNREDIS_CMD_BODY(
+        _MNREDIS_CMD_STATIC_ARGS,
+        MNREDIS_LREM,
+        if (req->resp->val.ty != MNREDIS_TINT) {
+            res = MNREDIS_LREM + 10;
+            goto end0;
+        }
+        *rv = req->resp->val.v.i;,
+        BYTES_DECREF(&s);
+    );
+}
+
+
+int
+mnredis_lset(mnredis_ctx_t *ctx,
+             mnbytes_t *key,
+             int64_t idx,
+             mnbytes_t *value)
+{
+    mnbytes_t *s = bytes_printf("%"PRId64, idx);
+    BYTES_INCREF(s);
+    mnbytes_t *args[] = { &_lset, key, s, value };
+    _MNREDIS_CMD_BODY(
+        _MNREDIS_CMD_STATIC_ARGS,
+        MNREDIS_LSET,
+        if (req->resp->val.ty != MNREDIS_TSSTR) {
+            res = MNREDIS_LREM + 10;
+            goto end0;
+        },
+        BYTES_DECREF(&s);
+    );
+}
 
 
 /*
