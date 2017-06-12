@@ -202,16 +202,16 @@ mnredis_parse_error(const char *s, int len, mnredis_value_t *val)
     BYTES_INCREF(val->v.e.message);
 }
 
-#define MNREDIS_MAYBE_CONSUME_DATA(pred)                               \
-        while (pred) {                                                 \
-            if ((res = bytestream_consume_data(bs, fp)) != 0) {        \
-                if (res == -1) {                                       \
-                    /* EOF */                                          \
-                } else {                                               \
-                }                                                      \
-                goto err;                                              \
-            }                                                          \
-        }                                                              \
+#define MNREDIS_MAYBE_CONSUME_DATA(pred)                       \
+    while (pred) {                                             \
+        if ((res = bytestream_consume_data(bs, fp)) != 0) {    \
+            if (res == -1) {                                   \
+                /* EOF */                                      \
+            } else {                                           \
+            }                                                  \
+            goto err;                                          \
+        }                                                      \
+    }                                                          \
 
 
 #define MNREDIS_PARSE_SCALAR(__a0)                             \
