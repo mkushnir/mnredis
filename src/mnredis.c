@@ -480,9 +480,19 @@ end:
 
 
 /*
- * commands
+ * Commands
+ *
+ * Return:
+ *  - 0 OK
+ *  - MNREDIS_COMMAND_ERROR protocol error
+ *  - MNREDIS_<CMD> + 1 connection closed
+ *  - MNREDIS_<CMD> + 2 internal retry interrupted
+ *  - MNREDIS_<CMD> + 3 other, possibly CO_RC_*, see mrkthr.h
+ *  - MNREDIS_<CMD> + 10 command-specific error (parameters, types, etc)
+ *
+ *  In general, everything other than 0 should signal a non-recoverable
+ *  error.
  */
-
 
 #define _MNREDIS_CMD_STATIC_ARGS               \
     req = mnredis_request_new(countof(args));  \
@@ -556,15 +566,29 @@ end:
     /*                                                                 \
      * first enqueue, then signal the write end                        \
      */                                                                \
+enqueue:                                                               \
     STQUEUE_ENQUEUE(&ctx->conn.requests_out, link, req);               \
     mrkthr_signal_send(&ctx->conn.send_signal);                        \
     if ((res = mrkthr_signal_subscribe(&req->recv_signal)) != 0) {     \
-        /*                                                             \
-         * leaving req to mnredis_recv_thread_worker()                 \
-         */                                                            \
         assert(!mrkthr_signal_has_owner(&req->recv_signal));           \
-        res = ecode + 3;                                               \
-        goto end1;                                                     \
+        if (res == MNREDIS_CTX_FINI) {                                 \
+            res = ecode + 1;                                           \
+            goto end0;                                                 \
+        } else if (res == MNREDIS_CTX_RECONNECT) {                     \
+            while (ctx->conn.fd == -1) {                               \
+                if (mrkthr_sleep(1001) != 0) {                         \
+                    res = ecode + 2;                                   \
+                    goto end0;                                         \
+                }                                                      \
+            }                                                          \
+            goto enqueue;                                              \
+        } else {                                                       \
+            /*                                                         \
+             * leaving req to mnredis_recv_thread_worker()             \
+             */                                                        \
+            res = ecode + 3;                                           \
+            goto end1;                                                 \
+        }                                                              \
     }                                                                  \
     if (req->resp != NULL) {                                           \
         if (req->resp->val.ty == MNREDIS_TERR) {                       \
@@ -584,6 +608,7 @@ end1:                                                                  \
 
 #define MNREDIS_CMD_BODY(ecode, __a0)   \
     _MNREDIS_CMD_BODY(_MNREDIS_CMD_STATIC_ARGS, ecode, __a0,)
+
 
 int
 mnredis_ping(mnredis_ctx_t *ctx)
@@ -1509,8 +1534,9 @@ end:
     return res;
 }
 
-void
-mnredis_ctx_fini(mnredis_ctx_t *ctx)
+
+static void
+mnredis_ctx_flush_queues(mnredis_ctx_t *ctx, int code, bool join)
 {
     mnredis_request_t *req;
 
@@ -1518,16 +1544,32 @@ mnredis_ctx_fini(mnredis_ctx_t *ctx)
      * By this point, no pending requests should wait.  Signal error if
      * find any.
      */
-    while ((req = STQUEUE_HEAD(&ctx->conn.requests_out)) != NULL) {
-        STQUEUE_DEQUEUE(&ctx->conn.requests_out, link);
-        mrkthr_signal_error_and_join(&req->recv_signal, MNREDIS_CTX_FINI + 1);
-    }
+    if (join) {
+        while ((req = STQUEUE_HEAD(&ctx->conn.requests_out)) != NULL) {
+            STQUEUE_DEQUEUE(&ctx->conn.requests_out, link);
+            (void)mrkthr_signal_error_and_join(&req->recv_signal, code);
+        }
 
-    while ((req = STQUEUE_HEAD(&ctx->conn.requests_in)) != NULL) {
-        STQUEUE_DEQUEUE(&ctx->conn.requests_in, link);
-        mrkthr_signal_error_and_join(&req->recv_signal, MNREDIS_CTX_FINI + 1);
-    }
+        while ((req = STQUEUE_HEAD(&ctx->conn.requests_in)) != NULL) {
+            STQUEUE_DEQUEUE(&ctx->conn.requests_in, link);
+            (void)mrkthr_signal_error_and_join(&req->recv_signal, code);
+        }
+    } else {
+        while ((req = STQUEUE_HEAD(&ctx->conn.requests_out)) != NULL) {
+            STQUEUE_DEQUEUE(&ctx->conn.requests_out, link);
+            mrkthr_signal_error(&req->recv_signal, code);
+        }
 
+        while ((req = STQUEUE_HEAD(&ctx->conn.requests_in)) != NULL) {
+            STQUEUE_DEQUEUE(&ctx->conn.requests_in, link);
+            mrkthr_signal_error(&req->recv_signal, code);
+        }
+    }
+}
+
+static void
+mnredis_ctx_close(mnredis_ctx_t *ctx)
+{
     if (ctx->conn.fd != -1) {
         close(ctx->conn.fd);
         ctx->conn.fd = -1;
@@ -1541,11 +1583,29 @@ mnredis_ctx_fini(mnredis_ctx_t *ctx)
             assert(ctx->conn.send_thread == NULL);
         }
     }
+}
+
+
+void
+mnredis_ctx_fini(mnredis_ctx_t *ctx)
+{
+    mnredis_ctx_flush_queues(ctx, MNREDIS_CTX_FINI, true);
+    mnredis_ctx_close(ctx);
+
     mrkthr_sema_fini(&ctx->conn.sema);
     BYTES_DECREF(&ctx->conn.host);
     BYTES_DECREF(&ctx->conn.port);
     bytestream_fini(&ctx->conn.in);
     bytestream_fini(&ctx->conn.out);
+}
+
+
+int
+mnredis_ctx_reconnect(mnredis_ctx_t *ctx)
+{
+    mnredis_ctx_flush_queues(ctx, MNREDIS_CTX_RECONNECT, false);
+    mnredis_ctx_close(ctx);
+    return mnredis_ctx_connect(ctx);
 }
 
 
