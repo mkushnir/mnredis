@@ -65,8 +65,6 @@ test0(void)
     }
     FOREACHDATA {
         mnbytes_t *rv;
-        //TRACE("in=%d expected=%d", CDATA.in, CDATA.expected);
-        //assert(CDATA.in == CDATA.expected);
         rv = NULL;
         if (mnredis_echo(&ctx, CDATA.s, &rv) != 0) {
             FAIL("mnredis_echo");
@@ -78,6 +76,7 @@ test0(void)
         FAIL("mnredis_ping");
     }
     mnredis_ctx_fini(&ctx);
+    CTRACE();
 }
 
 UNUSED static void

@@ -90,6 +90,7 @@ void mnredis_ctx_init(mnredis_ctx_t *, mnbytes_t *, mnbytes_t *, size_t);
 int mnredis_ctx_connect(mnredis_ctx_t *);
 
 #define MNREDIS_COMMAND_ERROR   (0x8001)
+#define MNREDIS_RESPONSE_ERROR  (0x8002)
 int mnredis_select(mnredis_ctx_t *, int);
 int mnredis_echo(mnredis_ctx_t *, mnbytes_t *, mnbytes_t **);
 int mnredis_ping(mnredis_ctx_t *);

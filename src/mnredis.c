@@ -7,7 +7,7 @@
 #include <inttypes.h> /* strtoimax() PRI* */
 #include <sys/socket.h>
 
-//#define TRRET_DEBUG
+#define TRRET_DEBUG
 #include <mrkcommon/dumpm.h>
 #include <mrkcommon/util.h>
 
@@ -208,6 +208,7 @@ mnredis_parse_error(const char *s, int len, mnredis_value_t *val)
             if (res == -1) {                                   \
                 /* EOF */                                      \
             } else {                                           \
+                res = MNREDIS_PARSE_VALUE + 10;                \
             }                                                  \
             goto err;                                          \
         }                                                      \
@@ -485,6 +486,7 @@ end:
  * Return:
  *  - 0 OK
  *  - MNREDIS_COMMAND_ERROR protocol error
+ *  - MNREDIS_RESPONSE_ERROR response parse error
  *  - MNREDIS_<CMD> + 1 connection closed
  *  - MNREDIS_<CMD> + 2 internal retry interrupted
  *  - MNREDIS_<CMD> + 3 other, possibly CO_RC_*, see mrkthr.h
@@ -576,7 +578,7 @@ enqueue:                                                               \
             goto end0;                                                 \
         } else if (res == MNREDIS_CTX_RECONNECT) {                     \
             while (ctx->conn.fd == -1) {                               \
-                if (mrkthr_sleep(1001) != 0) {                         \
+                if ((res = mrkthr_sleep(1001)) != 0) {                 \
                     res = ecode + 2;                                   \
                     goto end0;                                         \
                 }                                                      \
@@ -598,6 +600,7 @@ enqueue:                                                               \
         }                                                              \
     } else {                                                           \
         CTRACE("resp was NULL");                                       \
+        res = MNREDIS_RESPONSE_ERROR;                                  \
     }                                                                  \
 end0:                                                                  \
     mnredis_request_destroy(&req);                                     \
@@ -1466,13 +1469,26 @@ mnredis_recv_thread_worker(UNUSED int argc, UNUSED void **argv)
     ctx = argv[0];
 
     while (true) {
+        int res;
         mnredis_response_t *resp;
         mnredis_request_t *req;
         off_t recycled;
 
         resp = NULL;
-        if (mnredis_parse_response(&ctx->conn.in, ctx->conn.fp, &resp) != 0) {
-            break;
+        if ((res = mnredis_parse_response(&ctx->conn.in,
+                                          ctx->conn.fp,
+                                          &resp)) != 0) {
+            int rc;
+
+            rc = mrkthr_get_retval();
+            if (res == -1 || rc != 0) {
+                /* EOF or thread */
+                break;
+            } else {
+                /*
+                 * handle pending request...
+                 */
+            }
             /**/
         }
         recycled = bytestream_recycle(&ctx->conn.in, 1, SPOS(&ctx->conn.in));
