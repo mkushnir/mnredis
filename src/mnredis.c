@@ -1457,7 +1457,7 @@ mnredis_send_thread_worker(UNUSED int argc, UNUSED void **argv)
 
         if (SAVAIL(&ctx->conn.out) > 0) {
             if ((res = bytestream_produce_data(&ctx->conn.out, ctx->conn.fp)) != 0) {
-#ifndef TRRET_DEBUG
+#ifdef TRRET_DEBUG
                 CTRACE("bytestream_produce_data error: %s", mrkcommon_diag_str(res));
 #endif
             }
@@ -1465,7 +1465,7 @@ mnredis_send_thread_worker(UNUSED int argc, UNUSED void **argv)
         }
 
         if ((res = mrkthr_signal_subscribe(&ctx->conn.send_signal)) != 0) {
-#ifndef TRRET_DEBUG
+#ifdef TRRET_DEBUG
             CTRACE("mrkthr_signal_subscribe error: %s", diag_str(res));
 #endif
             break;
@@ -1475,7 +1475,7 @@ mnredis_send_thread_worker(UNUSED int argc, UNUSED void **argv)
     mrkthr_signal_fini(&ctx->conn.send_signal);
     mrkthr_decabac(ctx->conn.send_thread);
     ctx->conn.send_thread = NULL;
-#ifndef TRRET_DEBUG
+#ifdef TRRET_DEBUG
     CTRACE("Exiting send thread");
 #endif
     return 0;
@@ -1520,7 +1520,7 @@ mnredis_recv_thread_worker(UNUSED int argc, UNUSED void **argv)
             /*
              * response without request?
              */
-#ifndef TRRET_DEBUG
+#ifdef TRRET_DEBUG
             CTRACE("response without request?");
 #endif
             mnredis_response_destroy(&resp);
@@ -1545,7 +1545,7 @@ mnredis_recv_thread_worker(UNUSED int argc, UNUSED void **argv)
 
     mrkthr_decabac(ctx->conn.recv_thread);
     ctx->conn.recv_thread = NULL;
-#ifndef TRRET_DEBUG
+#ifdef TRRET_DEBUG
     CTRACE("Exiting recv thread");
 #endif
     return 0;
