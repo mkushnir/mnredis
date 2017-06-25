@@ -44,6 +44,7 @@ struct _mnredis_error {
 
 #define MNREDIS_MSEC2SEC(ms)((int64_t)((ms) / 1000 + ((ms) % 1000 ? 1 : 0)))
 
+
 typedef struct _mnredis_value {
     union {
         int64_t i;
@@ -59,12 +60,14 @@ typedef struct _mnredis_response {
     mnredis_value_t val;
 } mnredis_response_t;
 
+
 typedef struct _mnredis_request {
     STQUEUE_ENTRY(_mnredis_request, link);
     mnarray_t args;
     mrkthr_signal_t recv_signal;
     mnredis_response_t *resp;
 } mnredis_request_t;
+
 
 typedef struct _mnredis_connection {
     mnbytes_t *host;
@@ -81,10 +84,16 @@ typedef struct _mnredis_connection {
     STQUEUE(_mnredis_request, requests_in);
 } mnredis_connection_t;
 
+
 typedef struct _mnredis_ctx {
     mnredis_connection_t conn;
 } mnredis_ctx_t;
 
+
+typedef struct _mnredis_stats {
+    size_t requests_out_sz;
+    size_t requests_in_sz;
+} mnredis_stats_t;
 
 void mnredis_ctx_init(mnredis_ctx_t *, mnbytes_t *, mnbytes_t *, size_t);
 int mnredis_ctx_connect(mnredis_ctx_t *);
@@ -192,7 +201,10 @@ int mnredis_lset(mnredis_ctx_t *,
 
 //int mnredis_quit(mnredis_ctx_t *);
 
+bool mnredis_need_reconnect(mnredis_ctx_t *);
+int mnredis_ctx_reconnect(mnredis_ctx_t *);
 void mnredis_ctx_fini(mnredis_ctx_t *);
+void mnredis_ctx_stats(mnredis_ctx_t *, mnredis_stats_t *);
 
 #ifdef __cplusplus
 }

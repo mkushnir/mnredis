@@ -22,7 +22,7 @@ const char *_malloc_options = "AJ";
 
 UNUSED static mnbytes_t _localhost = BYTES_INITIALIZER("127.0.0.1");
 UNUSED static mnbytes_t _vmpear_103 = BYTES_INITIALIZER("10.1.3.103");
-#define TEST_REDIS _localhost
+#define TEST_REDIS _vmpear_103
 static mnbytes_t _6379 = BYTES_INITIALIZER("6379");
 
 

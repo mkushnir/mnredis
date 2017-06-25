@@ -7,7 +7,7 @@
 #include <inttypes.h> /* strtoimax() PRI* */
 #include <sys/socket.h>
 
-#define TRRET_DEBUG
+//#define TRRET_DEBUG
 #include <mrkcommon/dumpm.h>
 #include <mrkcommon/util.h>
 
@@ -202,13 +202,15 @@ mnredis_parse_error(const char *s, int len, mnredis_value_t *val)
     BYTES_INCREF(val->v.e.message);
 }
 
+#define MNREDIS_PARSE_VALUE_STREAM_ERROR (MNREDIS_PARSE_VALUE + 10)
+
 #define MNREDIS_MAYBE_CONSUME_DATA(pred)                       \
     while (pred) {                                             \
         if ((res = bytestream_consume_data(bs, fp)) != 0) {    \
             if (res == -1) {                                   \
                 /* EOF */                                      \
             } else {                                           \
-                res = MNREDIS_PARSE_VALUE + 10;                \
+                res = MNREDIS_PARSE_VALUE_STREAM_ERROR;        \
             }                                                  \
             goto err;                                          \
         }                                                      \
@@ -577,6 +579,7 @@ enqueue:                                                               \
             res = ecode + 1;                                           \
             goto end0;                                                 \
         } else if (res == MNREDIS_CTX_RECONNECT) {                     \
+            mrkthr_set_retval(0);                                      \
             while (ctx->conn.fd == -1) {                               \
                 if ((res = mrkthr_sleep(1001)) != 0) {                 \
                     res = ecode + 2;                                   \
@@ -595,6 +598,9 @@ enqueue:                                                               \
     if (req->resp != NULL) {                                           \
         if (req->resp->val.ty == MNREDIS_TERR) {                       \
             res = MNREDIS_COMMAND_ERROR;                               \
+            CTRACE("redis protocol error code '%s' message '%s'",      \
+                   BDATASAFE(req->resp->val.v.e.code),                 \
+                   BDATASAFE(req->resp->val.v.e.message));             \
         } else {                                                       \
             __a0                                                       \
         }                                                              \
@@ -1450,13 +1456,18 @@ mnredis_send_thread_worker(UNUSED int argc, UNUSED void **argv)
         }
 
         if (SAVAIL(&ctx->conn.out) > 0) {
-            if (bytestream_produce_data(&ctx->conn.out, ctx->conn.fp) != 0) {
-                break;
+            if ((res = bytestream_produce_data(&ctx->conn.out, ctx->conn.fp)) != 0) {
+#ifndef TRRET_DEBUG
+                CTRACE("bytestream_produce_data error: %s", mrkcommon_diag_str(res));
+#endif
             }
             bytestream_rewind(&ctx->conn.out);
         }
 
         if ((res = mrkthr_signal_subscribe(&ctx->conn.send_signal)) != 0) {
+#ifndef TRRET_DEBUG
+            CTRACE("mrkthr_signal_subscribe error: %s", diag_str(res));
+#endif
             break;
         }
     }
@@ -1464,7 +1475,9 @@ mnredis_send_thread_worker(UNUSED int argc, UNUSED void **argv)
     mrkthr_signal_fini(&ctx->conn.send_signal);
     mrkthr_decabac(ctx->conn.send_thread);
     ctx->conn.send_thread = NULL;
-    //CTRACE("Exiting send thread");
+#ifndef TRRET_DEBUG
+    CTRACE("Exiting send thread");
+#endif
     return 0;
 }
 
@@ -1490,7 +1503,9 @@ mnredis_recv_thread_worker(UNUSED int argc, UNUSED void **argv)
             int rc;
 
             rc = mrkthr_get_retval();
-            if (res == -1 || rc != 0) {
+            if (res == -1 ||
+                res == MNREDIS_PARSE_VALUE_STREAM_ERROR ||
+                rc != 0) {
                 /* EOF or thread */
                 break;
             } else {
@@ -1505,8 +1520,11 @@ mnredis_recv_thread_worker(UNUSED int argc, UNUSED void **argv)
             /*
              * response without request?
              */
+#ifndef TRRET_DEBUG
             CTRACE("response without request?");
+#endif
             mnredis_response_destroy(&resp);
+
         } else {
             STQUEUE_DEQUEUE(&ctx->conn.requests_in, link);
             /*
@@ -1527,7 +1545,9 @@ mnredis_recv_thread_worker(UNUSED int argc, UNUSED void **argv)
 
     mrkthr_decabac(ctx->conn.recv_thread);
     ctx->conn.recv_thread = NULL;
-    //CTRACE("Exiting recv thread");
+#ifndef TRRET_DEBUG
+    CTRACE("Exiting recv thread");
+#endif
     return 0;
 }
 
@@ -1546,10 +1566,12 @@ mnredis_ctx_connect(mnredis_ctx_t *ctx)
         goto end;
     }
     ctx->conn.fp = (void *)(intptr_t)ctx->conn.fd;
+
     ctx->conn.recv_thread = MRKTHR_SPAWN("mnrdrcv",
                                          mnredis_recv_thread_worker,
                                          ctx);
     mrkthr_incabac(ctx->conn.recv_thread);
+
     ctx->conn.send_thread = MRKTHR_SPAWN("mnrdsnd",
                                          mnredis_send_thread_worker,
                                          ctx);
@@ -1625,6 +1647,13 @@ mnredis_ctx_fini(mnredis_ctx_t *ctx)
 }
 
 
+bool
+mnredis_need_reconnect(mnredis_ctx_t *ctx)
+{
+    return ctx->conn.send_thread == NULL || ctx->conn.recv_thread == NULL;
+}
+
+
 int
 mnredis_ctx_reconnect(mnredis_ctx_t *ctx)
 {
@@ -1660,4 +1689,25 @@ mnredis_ctx_init(mnredis_ctx_t *ctx,
     ctx->conn.out.write = mrkthr_bytestream_write;
     STQUEUE_INIT(&ctx->conn.requests_out);
     STQUEUE_INIT(&ctx->conn.requests_in);
+}
+
+
+void
+mnredis_ctx_stats(mnredis_ctx_t *ctx, mnredis_stats_t *stats)
+{
+    mnredis_request_t *req;
+
+    stats->requests_out_sz = 0;
+    for (req = STQUEUE_HEAD(&ctx->conn.requests_out);
+         req != NULL;
+         req = STQUEUE_NEXT(link, req)) {
+        ++stats->requests_out_sz;
+    }
+
+    stats->requests_in_sz = 0;
+    for (req = STQUEUE_HEAD(&ctx->conn.requests_in);
+         req != NULL;
+         req = STQUEUE_NEXT(link, req)) {
+        ++stats->requests_in_sz;
+    }
 }
