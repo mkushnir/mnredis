@@ -1419,24 +1419,33 @@ mnredis_send_thread_worker(UNUSED int argc, UNUSED void **argv)
 
             STQUEUE_DEQUEUE(&ctx->conn.requests_out, link);
             STQUEUE_ENTRY_FINI(link, req);
-            STQUEUE_ENQUEUE(&ctx->conn.requests_in, link, req);
+            if (MRKLIKELY(mrkthr_signal_has_owner(&req->recv_signal))) {
+                STQUEUE_ENQUEUE(&ctx->conn.requests_in, link, req);
 
-            if (MRKUNLIKELY(
-                    mnredis_pack_alen(&ctx->conn.out,
-                                      (int64_t)req->args.elnum) <= 0)) {
-                /*
-                 * XXX
-                 */
-            }
-            for (a = array_first(&req->args, &it);
-                 a != NULL;
-                 a = array_next(&req->args, &it)) {
-                if (MRKUNLIKELY(mnredis_pack_bstrz(&ctx->conn.out,
-                                                   *a) <= 0)) {
+                if (MRKUNLIKELY(
+                        mnredis_pack_alen(&ctx->conn.out,
+                                          (int64_t)req->args.elnum) <= 0)) {
                     /*
                      * XXX
                      */
                 }
+
+                for (a = array_first(&req->args, &it);
+                     a != NULL;
+                     a = array_next(&req->args, &it)) {
+                    if (MRKUNLIKELY(mnredis_pack_bstrz(&ctx->conn.out,
+                                                       *a) <= 0)) {
+                        /*
+                         * XXX
+                         */
+                    }
+                }
+
+            } else {
+                /*
+                 * no owver, request timed out?
+                 */
+                mnredis_request_destroy(&req);
             }
         }
 
