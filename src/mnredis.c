@@ -1697,17 +1697,20 @@ mnredis_ctx_stats(mnredis_ctx_t *ctx, mnredis_stats_t *stats)
 {
     mnredis_request_t *req;
 
-    stats->requests_out_sz = 0;
+    stats->rq_out_sz = 0;
     for (req = STQUEUE_HEAD(&ctx->conn.requests_out);
          req != NULL;
          req = STQUEUE_NEXT(link, req)) {
-        ++stats->requests_out_sz;
+        ++stats->rq_out_sz;
     }
 
-    stats->requests_in_sz = 0;
+    stats->rq_in_sz = 0;
     for (req = STQUEUE_HEAD(&ctx->conn.requests_in);
          req != NULL;
          req = STQUEUE_NEXT(link, req)) {
-        ++stats->requests_in_sz;
+        ++stats->rq_in_sz;
     }
+
+    stats->bs_in_sz = SEOD(&ctx->conn.in);
+    stats->bs_out_sz = SEOD(&ctx->conn.out);
 }

@@ -91,8 +91,10 @@ typedef struct _mnredis_ctx {
 
 
 typedef struct _mnredis_stats {
-    size_t requests_out_sz;
-    size_t requests_in_sz;
+    size_t rq_out_sz;
+    size_t rq_in_sz;
+    size_t bs_in_sz;
+    size_t bs_out_sz;
 } mnredis_stats_t;
 
 void mnredis_ctx_init(mnredis_ctx_t *, mnbytes_t *, mnbytes_t *, size_t);

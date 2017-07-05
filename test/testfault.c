@@ -70,7 +70,8 @@ mymonitor(UNUSED int argc, UNUSED void **argv)
 
     while (true) {
         if ((res = mrkthr_sleep(5000)) != 0) {
-            CTRACE("mrkthr_sleep() returned %s", MRKTHR_IS_CO_RC(res) ? CO_RC_STR(res) : diag_str(res));
+            CTRACE("mrkthr_sleep() returned %s",
+                   MRKTHR_IS_CO_RC(res) ? CO_RC_STR(res) : diag_str(res));
             if (res == CO_RC_POLLER) {
                 mrkthr_set_retval(0);
                 continue;
@@ -78,7 +79,12 @@ mymonitor(UNUSED int argc, UNUSED void **argv)
             break;
         }
         mnredis_ctx_stats(&ctx, &stats);
-        CTRACE("out=%zd in=%zd nreq=%d", stats.requests_out_sz, stats.requests_in_sz, _numrequests);
+        CTRACE("out=%zd/%zd in=%zd/%zd nreq=%d",
+               stats.rq_out_sz,
+               stats.bs_out_sz,
+               stats.rq_in_sz,
+               stats.bs_in_sz,
+               _numrequests);
         _numrequests = 0;
         if (mnredis_need_reconnect(&ctx)) {
             CTRACE("Reconnecting ...");
