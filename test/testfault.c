@@ -155,7 +155,7 @@ worker1(UNUSED int argc, UNUSED void **argv)
         value = bytes_new(j + 1);
         BYTES_INCREF(value);
         bytes_memsetz(value, 'Z');
-        CTRACE("j=%d key=%s value(%"PRId64")=%s", j, BDATA(key), BSZ(value), BDATA(value));
+        CTRACE("j=%d key=%s value(%zd)=%s", j, BDATA(key), BSZ(value), BDATA(value));
 
         res = mnredis_set(&ctx, key, value, j * 17);
         BYTES_DECREF(&key);
