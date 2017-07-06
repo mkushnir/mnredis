@@ -491,7 +491,7 @@ end:
  *  - MNREDIS_RESPONSE_ERROR response parse error
  *  - MNREDIS_<CMD> + 1 connection closed
  *  - MNREDIS_<CMD> + 2 internal retry interrupted
- *  - MNREDIS_<CMD> + 3 other, possibly CO_RC_*, see mrkthr.h
+ *  - MNREDIS_<CMD> + 3 other, possibly MRKTHR_CO_RC_*, see mrkthr.h
  *  - MNREDIS_<CMD> + 10 command-specific error (parameters, types, etc)
  *
  *  In general, everything other than 0 should signal a non-recoverable

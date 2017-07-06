@@ -26,7 +26,7 @@ const char *_malloc_options = "AJ";
 UNUSED static mnbytes_t _localhost = BYTES_INITIALIZER("127.0.0.1");
 UNUSED static mnbytes_t _vmpear_103 = BYTES_INITIALIZER("10.1.3.103");
 #define TEST_REDIS _vmpear_103
-static mnbytes_t _6379 = BYTES_INITIALIZER("6379");
+static mnbytes_t _6379 = BYTES_INITIALIZER("6378");
 
 #define NNN 10000
 #define MMM 3000
@@ -103,88 +103,7 @@ mymonitor(UNUSED int argc, UNUSED void **argv)
 UNUSED static int
 worker0(UNUSED int argc, UNUSED void **argv)
 {
-    int i;
-
-    i = (int)(intptr_t)argv[0];
-
-    while (true) {
-        int res;
-        int64_t tmout;
-        mnbytes_t *key, *value;
-
-        tmout = random() % MMM;
-
-        key = bytes_printf("key-%d-%"PRId64, i, tmout);
-        BYTES_INCREF(key);
-        value = bytes_new(tmout + 1);
-        BYTES_INCREF(value);
-        bytes_memsetz(value, 'Z');
-
-        //CTRACE("new %s", BDATA(key));
-        res = mnredis_set(&ctx, key, value, tmout * 17);
-        BYTES_DECREF(&key);
-        BYTES_DECREF(&value);
-        ++_numrequests;
-        //TRACEC(".");
-
-        if (res != 0) {
-            CTRACE("error was %s", diag_str(res));
-        }
-
-        if ((res = mrkthr_sleep(tmout)) != 0) {
-            CTRACE("mrkthr_sleep() returned %s", diag_str(res));
-            break;
-        }
-        //CTRACE("tmout was %"PRId64, tmout);
-    }
-
     CTRACE("Exiting worker ...");
-    return 0;
-}
-
-
-UNUSED static int
-worker1(UNUSED int argc, UNUSED void **argv)
-{
-    int i, j;
-
-    i = (int)(intptr_t)argv[0];
-    j = 0;
-    while (true) {
-        int res;
-        mnbytes_t *key, *value;
-
-        ++j;
-
-        key = bytes_printf("key-%d-%d", i, j);
-        BYTES_INCREF(key);
-        value = bytes_new(j + 1);
-        BYTES_INCREF(value);
-        bytes_memsetz(value, 'Z');
-        CTRACE("j=%d key=%s value(%zd)=%s", j, BDATA(key), BSZ(value), BDATA(value));
-
-        res = mnredis_set(&ctx, key, value, j * 17);
-        BYTES_DECREF(&key);
-        BYTES_DECREF(&value);
-
-        if (res != 0) {
-            CTRACE("res=%s", diag_str(res));
-            switch (res) {
-            case MNREDIS_COMMAND_ERROR:
-                break;
-
-            default:
-                goto end;
-            }
-        }
-
-        if (mrkthr_sleep(100) != 0) {
-            break;
-        }
-
-    }
-
-end:
     return 0;
 }
 
@@ -198,7 +117,8 @@ run0(UNUSED int argc, UNUSED void **argv)
 
     while ((res = mnredis_ctx_connect(&ctx)) != 0) {
         CTRACE("res=%d reconnecting ...", res);
-        if (mrkthr_sleep(1000) != 0) {
+        if ((res = mrkthr_sleep(1000)) != 0) {
+            CTRACE("res=%s break...", MRKTHR_CO_RC_STR(res));
             goto end;
         }
     }

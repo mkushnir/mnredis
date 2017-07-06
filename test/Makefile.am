@@ -11,7 +11,7 @@ AM_MAKEFLAGS = -s
 #   - noinst_HEADERS
 noinst_HEADERS = unittest.h
 
-noinst_PROGRAMS=testfoo testfault gendata
+noinst_PROGRAMS=testfoo testfault testcompleteness gendata
 
 BUILT_SOURCES = diag.c diag.h gen-diag
 EXTRA_DIST = $(diags) gen-diag runscripts
@@ -37,6 +37,12 @@ testfault_SOURCES = testfault.c
 testfault_CFLAGS = $(DEBUG_FLAGS) -Wall -Wextra -Werror -std=c99 @_GNU_SOURCE_MACRO@ -I$(top_srcdir)/test -I$(top_srcdir)/src -I$(top_srcdir) -I$(includedir)
 #testfault_LDFLAGS = -L$(libdir) -lmrkcommon -L$(top_srcdir)/src/.libs -lmnredis
 testfault_LDFLAGS = -L$(top_srcdir)/src/.libs -lmnredis -L$(libdir) -lmrkapp -lmrkthr -lmrkcommon
+
+nodist_testcompleteness_SOURCES = diag.c
+testcompleteness_SOURCES = testcompleteness.c
+testcompleteness_CFLAGS = $(DEBUG_FLAGS) -Wall -Wextra -Werror -std=c99 @_GNU_SOURCE_MACRO@ -I$(top_srcdir)/test -I$(top_srcdir)/src -I$(top_srcdir) -I$(includedir)
+#testcompleteness_LDFLAGS = -L$(libdir) -lmrkcommon -L$(top_srcdir)/src/.libs -lmnredis
+testcompleteness_LDFLAGS = -L$(top_srcdir)/src/.libs -lmnredis -L$(libdir) -lmrkapp -lmrkthr -lmrkcommon
 
 nodist_gendata_SOURCES = diag.c
 gendata_SOURCES = gendata.c
