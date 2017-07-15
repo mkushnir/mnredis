@@ -155,33 +155,6 @@ mnredis_value_item_fini(mnredis_value_t *val)
 }
 
 
-/*
- * mnredis_response_t
- */
-static mnredis_response_t *
-mnredis_response_new(void)
-{
-    mnredis_response_t *res;
-
-    if (MRKUNLIKELY((res = malloc(sizeof(mnredis_response_t))) == NULL)) {
-        FAIL("malloc");
-    }
-    res->val.ty = MNREDIS_UNDEF;
-
-    return res;
-}
-
-static void
-mnredis_response_destroy(mnredis_response_t **resp)
-{
-    if (*resp != NULL) {
-        mnredis_value_fini(&(*resp)->val);
-        free(*resp);
-        *resp = NULL;
-    }
-}
-
-
 static void
 mnredis_parse_error(const char *s, int len, mnredis_value_t *val)
 {
@@ -357,6 +330,89 @@ err:
 }
 
 
+/*
+ * pack
+ */
+UNUSED static ssize_t
+mnredis_pack_int(mnbytestream_t *bs, int64_t v)
+{
+    return bytestream_nprintf(bs, 64, ":%ld\r\n", v);
+}
+
+
+static ssize_t
+mnredis_pack_alen(mnbytestream_t *bs, int64_t v)
+{
+    return bytestream_nprintf(bs, 64, "*%ld\r\n", v);
+}
+
+
+static ssize_t
+mnredis_pack_bstrz(mnbytestream_t *bs, mnbytes_t *v)
+{
+    assert(v != NULL);
+    return bytestream_nprintf(bs,
+                              64 + BSZ(v),
+                              "$%zd\r\n%s\r\n",
+                              BSZ(v) - 1,
+                              BDATA(v));
+}
+
+
+UNUSED static ssize_t
+mnredis_pack_bstr(mnbytestream_t *bs, mnbytes_t *v)
+{
+    ssize_t nwritten, res;
+
+    assert(v != NULL);
+    if ((nwritten = bytestream_nprintf(bs, 64, "$%zd\r\n", BSZ(v))) <= 0) {
+        res = -1;
+        goto end;
+    }
+    res = nwritten;
+    if ((nwritten = bytestream_cat(bs, BSZ(v), (char *)BDATA(v))) < 0) {
+        res = -1;
+        goto end;
+    }
+    res += nwritten;
+    if ((bytestream_cat(bs, 3, "\r\n")) != 3) {
+        res = -1;
+        goto end;
+    }
+    res += 3;
+
+end:
+    return res;
+}
+
+
+/*
+ * mnredis_response_t
+ */
+static mnredis_response_t *
+mnredis_response_new(void)
+{
+    mnredis_response_t *res;
+
+    if (MRKUNLIKELY((res = malloc(sizeof(mnredis_response_t))) == NULL)) {
+        FAIL("malloc");
+    }
+    res->val.ty = MNREDIS_UNDEF;
+
+    return res;
+}
+
+static void
+mnredis_response_destroy(mnredis_response_t **resp)
+{
+    if (*resp != NULL) {
+        mnredis_value_fini(&(*resp)->val);
+        free(*resp);
+        *resp = NULL;
+    }
+}
+
+
 static int
 mnredis_parse_response(mnbytestream_t *bs, void *fp, mnredis_response_t **resp)
 {
@@ -424,62 +480,6 @@ mnredis_request_destroy(mnredis_request_t **req)
     }
 }
 
-
-
-/*
- * pack
- */
-UNUSED static ssize_t
-mnredis_pack_int(mnbytestream_t *bs, int64_t v)
-{
-    return bytestream_nprintf(bs, 64, ":%ld\r\n", v);
-}
-
-
-static ssize_t
-mnredis_pack_alen(mnbytestream_t *bs, int64_t v)
-{
-    return bytestream_nprintf(bs, 64, "*%ld\r\n", v);
-}
-
-
-static ssize_t
-mnredis_pack_bstrz(mnbytestream_t *bs, mnbytes_t *v)
-{
-    assert(v != NULL);
-    return bytestream_nprintf(bs,
-                              64 + BSZ(v),
-                              "$%zd\r\n%s\r\n",
-                              BSZ(v) - 1,
-                              BDATA(v));
-}
-
-
-UNUSED static ssize_t
-mnredis_pack_bstr(mnbytestream_t *bs, mnbytes_t *v)
-{
-    ssize_t nwritten, res;
-
-    assert(v != NULL);
-    if ((nwritten = bytestream_nprintf(bs, 64, "$%zd\r\n", BSZ(v))) <= 0) {
-        res = -1;
-        goto end;
-    }
-    res = nwritten;
-    if ((nwritten = bytestream_cat(bs, BSZ(v), (char *)BDATA(v))) < 0) {
-        res = -1;
-        goto end;
-    }
-    res += nwritten;
-    if ((bytestream_cat(bs, 3, "\r\n")) != 3) {
-        res = -1;
-        goto end;
-    }
-    res += 3;
-
-end:
-    return res;
-}
 
 
 /*
