@@ -575,10 +575,10 @@ enqueue:                                                               \
     mrkthr_signal_send(&ctx->conn.send_signal);                        \
     if ((res = mrkthr_signal_subscribe(&req->recv_signal)) != 0) {     \
         assert(!mrkthr_signal_has_owner(&req->recv_signal));           \
-        if (res == MNREDIS_CTX_FINI) {                                 \
+        if (res == (int)MNREDIS_CTX_FINI) {                            \
             res = ecode + 1;                                           \
             goto end0;                                                 \
-        } else if (res == MNREDIS_CTX_RECONNECT) {                     \
+        } else if (res == (int)MNREDIS_CTX_RECONNECT) {                \
             mrkthr_set_retval(0);                                      \
             while (ctx->conn.fd == -1) {                               \
                 if ((res = mrkthr_sleep(1001)) != 0) {                 \
@@ -1504,7 +1504,7 @@ mnredis_recv_thread_worker(UNUSED int argc, UNUSED void **argv)
 
             rc = mrkthr_get_retval();
             if (res == -1 ||
-                res == MNREDIS_PARSE_VALUE_STREAM_ERROR ||
+                res == (int)MNREDIS_PARSE_VALUE_STREAM_ERROR ||
                 rc != 0) {
                 /* EOF or thread */
                 break;

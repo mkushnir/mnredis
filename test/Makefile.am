@@ -13,8 +13,8 @@ noinst_HEADERS = unittest.h
 
 noinst_PROGRAMS=testfoo testfault testcompleteness gendata
 
-BUILT_SOURCES = diag.c diag.h gen-diag
-EXTRA_DIST = $(diags) gen-diag runscripts
+BUILT_SOURCES = diag.c diag.h
+EXTRA_DIST = diag.txt runscripts
 
 #noinst_HEADERS = ../src/mnredis.h
 
@@ -30,28 +30,28 @@ nodist_testfoo_SOURCES = diag.c
 testfoo_SOURCES = testfoo.c
 testfoo_CFLAGS = $(DEBUG_FLAGS) -Wall -Wextra -Werror -std=c99 @_GNU_SOURCE_MACRO@ -I$(top_srcdir)/test -I$(top_srcdir)/src -I$(top_srcdir) -I$(includedir)
 #testfoo_LDFLAGS = -L$(libdir) -lmrkcommon -L$(top_srcdir)/src/.libs -lmnredis
-testfoo_LDFLAGS = -L$(top_srcdir)/src/.libs -lmnredis -L$(libdir) -lmrkapp -lmrkthr -lmrkcommon
+testfoo_LDFLAGS = -L$(top_srcdir)/src/.libs -lmnredis -L$(libdir) -lmrkapp -lmrkthr -lmrkcommon -lmndiag
 
 nodist_testfault_SOURCES = diag.c
 testfault_SOURCES = testfault.c
 testfault_CFLAGS = $(DEBUG_FLAGS) -Wall -Wextra -Werror -std=c99 @_GNU_SOURCE_MACRO@ -I$(top_srcdir)/test -I$(top_srcdir)/src -I$(top_srcdir) -I$(includedir)
 #testfault_LDFLAGS = -L$(libdir) -lmrkcommon -L$(top_srcdir)/src/.libs -lmnredis
-testfault_LDFLAGS = -L$(top_srcdir)/src/.libs -lmnredis -L$(libdir) -lmrkapp -lmrkthr -lmrkcommon
+testfault_LDFLAGS = -L$(top_srcdir)/src/.libs -lmnredis -L$(libdir) -lmrkapp -lmrkthr -lmrkcommon -lmndiag
 
 nodist_testcompleteness_SOURCES = diag.c
 testcompleteness_SOURCES = testcompleteness.c
 testcompleteness_CFLAGS = $(DEBUG_FLAGS) -Wall -Wextra -Werror -std=c99 @_GNU_SOURCE_MACRO@ -I$(top_srcdir)/test -I$(top_srcdir)/src -I$(top_srcdir) -I$(includedir)
 #testcompleteness_LDFLAGS = -L$(libdir) -lmrkcommon -L$(top_srcdir)/src/.libs -lmnredis
-testcompleteness_LDFLAGS = -L$(top_srcdir)/src/.libs -lmnredis -L$(libdir) -lmrkapp -lmrkthr -lmrkcommon
+testcompleteness_LDFLAGS = -L$(top_srcdir)/src/.libs -lmnredis -L$(libdir) -lmrkapp -lmrkthr -lmrkcommon -lmndiag
 
 nodist_gendata_SOURCES = diag.c
 gendata_SOURCES = gendata.c
 gendata_CFLAGS = $(DEBUG_FLAGS) -Wall -Wextra -Werror -std=c99 @_GNU_SOURCE_MACRO@ -I$(top_srcdir)/test -I$(top_srcdir)/src -I$(top_srcdir) -I$(includedir)
-gendata_LDFLAGS = -L$(libdir) -lmrkcommon 
+gendata_LDFLAGS = -L$(libdir) -lmrkcommon  -lmndiag
 #gendata_LDFLAGS = 
 
-diag.c diag.h: $(diags) gen-diag
-	$(AM_V_GEN) cat $(diags) | sort -u | ./gen-diag mnredis ../src
+diag.c diag.h: $(diags)
+	$(AM_V_GEN) cat $(diags) | sort -u >diag.txt.tmp && mndiagen -S diag.txt.tmp -L mnredis -H diag.h -C diag.c ../*.[ch] ./*.[ch]
 
 testfoo-run: testfoo
 	@if test -x $>; \

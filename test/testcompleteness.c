@@ -25,8 +25,8 @@ const char *_malloc_options = "AJ";
 
 UNUSED static mnbytes_t _localhost = BYTES_INITIALIZER("127.0.0.1");
 UNUSED static mnbytes_t _vmpear_103 = BYTES_INITIALIZER("10.1.3.103");
-#define TEST_REDIS _vmpear_103
-static mnbytes_t _6379 = BYTES_INITIALIZER("6378");
+#define TEST_REDIS _localhost
+static mnbytes_t _6379 = BYTES_INITIALIZER("6379");
 
 #define NNN 10000
 #define MMM 3000
@@ -103,7 +103,7 @@ mymonitor(UNUSED int argc, UNUSED void **argv)
 UNUSED static int
 worker0(UNUSED int argc, UNUSED void **argv)
 {
-    CTRACE("Exiting worker ...");
+    //CTRACE("Exiting worker ...");
     return 0;
 }
 
@@ -117,9 +117,18 @@ run0(UNUSED int argc, UNUSED void **argv)
 
     while ((res = mnredis_ctx_connect(&ctx)) != 0) {
         CTRACE("res=%d reconnecting ...", res);
+
         if ((res = mrkthr_sleep(1000)) != 0) {
-            CTRACE("res=%s break...", MRKTHR_CO_RC_STR(res));
-            goto end;
+            res = mrkthr_set_retval(0);
+            CTRACE("rc=%s", MRKTHR_CO_RC_STR(res));
+            if (res != 0) {
+                if (res != MRKTHR_CO_RC_POLLER) {
+                    goto end;
+                }
+                if (mrkthr_sleep(500) != 0) {
+                    break;
+                }
+            }
         }
     }
 
