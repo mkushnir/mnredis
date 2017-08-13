@@ -75,7 +75,7 @@ mymonitor(UNUSED int argc, UNUSED void **argv)
             mndiag_local_str(res, buf, sizeof(buf));
             CTRACE("mrkthr_sleep() returned %s",
                    MRKTHR_IS_CO_RC(res) ? MRKTHR_CO_RC_STR(res) : buf);
-            if (res == MRKTHR_CO_RC_POLLER) {
+            if (res == (int)MRKTHR_CO_RC_POLLER) {
                 mrkthr_set_retval(0);
                 continue;
             }
@@ -128,7 +128,7 @@ run0(UNUSED int argc, UNUSED void **argv)
             res = mrkthr_set_retval(0);
             CTRACE("rc=%s", MRKTHR_CO_RC_STR(res));
             if (res != 0) {
-                if (res != MRKTHR_CO_RC_POLLER) {
+                if (res != (int)MRKTHR_CO_RC_POLLER) {
                     goto end;
                 }
                 if (mrkthr_sleep(500) != 0) {
