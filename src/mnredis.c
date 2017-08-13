@@ -15,6 +15,7 @@
 
 #include "diag.h"
 
+void mndiag_mrkcommon_str(int, char *, size_t);
 
 static mnbytes_t _echo = BYTES_INITIALIZER("ECHO");
 static mnbytes_t _ping = BYTES_INITIALIZER("PING");
@@ -1458,7 +1459,13 @@ mnredis_send_thread_worker(UNUSED int argc, UNUSED void **argv)
         if (SAVAIL(&ctx->conn.out) > 0) {
             if ((res = bytestream_produce_data(&ctx->conn.out, ctx->conn.fp)) != 0) {
 #ifdef TRRET_DEBUG
-                CTRACE("bytestream_produce_data error: %s", mrkcommon_diag_str(res));
+                char buf[64];
+                if (MNDIAG_GET_LIBRARY(res) == MNDIAG_LIBRARY_MRKCOMMON) {
+                    mndiag_mrkcommon_str(res, buf, sizeof(buf));
+                } else {
+                    mndiag_local_str(res, buf, sizeof(buf));
+                }
+                CTRACE("bytestream_produce_data error: %s", buf);
 #endif
             }
             bytestream_rewind(&ctx->conn.out);
@@ -1466,7 +1473,9 @@ mnredis_send_thread_worker(UNUSED int argc, UNUSED void **argv)
 
         if ((res = mrkthr_signal_subscribe(&ctx->conn.send_signal)) != 0) {
 #ifdef TRRET_DEBUG
-            CTRACE("mrkthr_signal_subscribe error: %s", diag_str(res));
+            char buf[64];
+            mndiag_local_str(res, buf, sizeof(buf));
+            CTRACE("mrkthr_signal_subscribe error: %s", buf);
 #endif
             break;
         }

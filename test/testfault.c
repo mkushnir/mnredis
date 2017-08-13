@@ -70,8 +70,11 @@ mymonitor(UNUSED int argc, UNUSED void **argv)
 
     while (true) {
         if ((res = mrkthr_sleep(5000)) != 0) {
+            char buf[64];
+
+            mndiag_local_str(res, buf, sizeof(buf));
             CTRACE("mrkthr_sleep() returned %s",
-                   MRKTHR_IS_CO_RC(res) ? MRKTHR_CO_RC_STR(res) : diag_str(res));
+                   MRKTHR_IS_CO_RC(res) ? MRKTHR_CO_RC_STR(res) : buf);
             if (res == MRKTHR_CO_RC_POLLER) {
                 mrkthr_set_retval(0);
                 continue;
@@ -89,7 +92,10 @@ mymonitor(UNUSED int argc, UNUSED void **argv)
         if (mnredis_need_reconnect(&ctx)) {
             CTRACE("Reconnecting ...");
             if ((res = mnredis_ctx_reconnect(&ctx)) != 0) {
-                CTRACE("reconnect failed: %s", diag_str(res));
+                char buf[64];
+
+                mndiag_local_str(res, buf, sizeof(buf));
+                CTRACE("reconnect failed: %s", buf);
                 continue;
             }
             CTRACE("...OK");
@@ -128,11 +134,17 @@ worker0(UNUSED int argc, UNUSED void **argv)
         //TRACEC(".");
 
         if (res != 0) {
-            CTRACE("error was %s", diag_str(res));
+            char buf[64];
+
+            mndiag_local_str(res, buf, sizeof(buf));
+            CTRACE("error was %s", buf);
         }
 
         if ((res = mrkthr_sleep(tmout)) != 0) {
-            CTRACE("mrkthr_sleep() returned %s", diag_str(res));
+            char buf[64];
+
+            mndiag_local_str(res, buf, sizeof(buf));
+            CTRACE("mrkthr_sleep() returned %s", buf);
             break;
         }
         //CTRACE("tmout was %"PRId64, tmout);
@@ -168,7 +180,10 @@ worker1(UNUSED int argc, UNUSED void **argv)
         BYTES_DECREF(&value);
 
         if (res != 0) {
-            CTRACE("res=%s", diag_str(res));
+            char buf[64];
+
+            mndiag_local_str(res, buf, sizeof(buf));
+            CTRACE("res=%s", buf);
             switch (res) {
             case MNREDIS_COMMAND_ERROR:
                 break;

@@ -18,7 +18,7 @@ EXTRA_DIST = diag.txt runscripts
 
 #noinst_HEADERS = ../src/mnredis.h
 
-diags = diag.txt ../src/diag.txt
+diags = ../src/diag.txt
 
 if DEBUG
 DEBUG_FLAGS = -g -O0 @CC_DEBUG@
