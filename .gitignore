@@ -2,6 +2,7 @@
 *.core
 *.l[ao]
 *.log
+.ac-aux
 .deps
 .dirstamp
 .libs
