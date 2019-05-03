@@ -371,7 +371,7 @@ mnredis_pack_bstr(mnbytestream_t *bs, mnbytes_t *v)
         goto end;
     }
     res = nwritten;
-    if ((nwritten = bytestream_cat(bs, BSZ(v), (char *)BDATA(v))) < 0) {
+    if ((nwritten = bytestream_cat(bs, BSZ(v), BCDATA(v))) < 0) {
         res = -1;
         goto end;
     }
@@ -1568,8 +1568,8 @@ mnredis_ctx_connect(mnredis_ctx_t *ctx)
 
     res = 0;
 
-    if ((ctx->conn.fd = mrkthr_socket_connect((char *)BDATA(ctx->conn.host),
-                                              (char *)BDATA(ctx->conn.port),
+    if ((ctx->conn.fd = mrkthr_socket_connect(BCDATA(ctx->conn.host),
+                                              BCDATA(ctx->conn.port),
                                               PF_UNSPEC)) == -1) {
         res = MNREDIS_CTX_CONNECT + 1;
         goto end;

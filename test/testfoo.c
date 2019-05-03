@@ -306,7 +306,7 @@ test5(void)
         res = mnredis_get(&ctx, qwe, &rv);
         //assert(res == 0);
         if (rv != NULL) {
-            n = strtoimax((char *)BDATA(rv), NULL, 10);
+            n = strtoimax(BCDATA(rv), NULL, 10);
             TRACE("n=%ld", n);
         } else {
             TRACE("rv was NULL");
