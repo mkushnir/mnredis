@@ -7,11 +7,11 @@
 
 #define TRRET_DEBUG
 
-#include <mrkcommon/bytes.h>
-#include <mrkcommon/dumpm.h>
-#include <mrkcommon/util.h>
+#include <mncommon/bytes.h>
+#include <mncommon/dumpm.h>
+#include <mncommon/util.h>
 
-#include <mrkthr.h>
+#include <mnthr.h>
 
 #include <mnredis.h>
 
@@ -38,7 +38,7 @@ static int
 myshutdown(UNUSED int argc, UNUSED void **argv)
 {
     mnredis_ctx_fini(&ctx);
-    (void)mrkthr_shutdown();
+    (void)mnthr_shutdown();
     return 0;
 }
 
@@ -46,7 +46,7 @@ myshutdown(UNUSED int argc, UNUSED void **argv)
 static void
 myterm(UNUSED int sig)
 {
-    MRKTHR_SPAWN_SIG("shutdwn", myshutdown);
+    MNTHR_SPAWN_SIG("shutdwn", myshutdown);
 }
 
 
@@ -56,7 +56,7 @@ UNUSED
 static void
 myinfo(UNUSED int sig)
 {
-    mrkthr_dump_all_ctxes();
+    mnthr_dump_all_ctxes();
 }
 
 
@@ -69,14 +69,14 @@ mymonitor(UNUSED int argc, UNUSED void **argv)
     mnredis_stats_t stats;
 
     while (true) {
-        if ((res = mrkthr_sleep(5000)) != 0) {
+        if ((res = mnthr_sleep(5000)) != 0) {
             char buf[64];
 
             mndiag_local_str(res, buf, sizeof(buf));
-            CTRACE("mrkthr_sleep() returned %s",
-                   MRKTHR_IS_CO_RC(res) ? MRKTHR_CO_RC_STR(res) : buf);
-            if (res == (int)MRKTHR_CO_RC_POLLER) {
-                mrkthr_set_retval(0);
+            CTRACE("mnthr_sleep() returned %s",
+                   MNTHR_IS_CO_RC(res) ? MNTHR_CO_RC_STR(res) : buf);
+            if (res == (int)MNTHR_CO_RC_POLLER) {
+                mnthr_set_retval(0);
                 continue;
             }
             break;
@@ -140,11 +140,11 @@ worker0(UNUSED int argc, UNUSED void **argv)
             CTRACE("error was %s", buf);
         }
 
-        if ((res = mrkthr_sleep(tmout)) != 0) {
+        if ((res = mnthr_sleep(tmout)) != 0) {
             char buf[64];
 
             mndiag_local_str(res, buf, sizeof(buf));
-            CTRACE("mrkthr_sleep() returned %s", buf);
+            CTRACE("mnthr_sleep() returned %s", buf);
             break;
         }
         //CTRACE("tmout was %"PRId64, tmout);
@@ -193,7 +193,7 @@ worker1(UNUSED int argc, UNUSED void **argv)
             }
         }
 
-        if (mrkthr_sleep(100) != 0) {
+        if (mnthr_sleep(100) != 0) {
             break;
         }
 
@@ -213,18 +213,18 @@ run0(UNUSED int argc, UNUSED void **argv)
 
     while ((res = mnredis_ctx_connect(&ctx)) != 0) {
         CTRACE("res=%d reconnecting ...", res);
-        if (mrkthr_sleep(1000) != 0) {
+        if (mnthr_sleep(1000) != 0) {
             goto end;
         }
     }
 
-    MRKTHR_SPAWN("mymon", mymonitor);
+    MNTHR_SPAWN("mymon", mymonitor);
 
 
     for (i = 0; i < NNN; ++i) {
         char buf[8];
         (void)snprintf(buf, sizeof(buf), "w%d", i);
-        MRKTHR_SPAWN(buf, worker0, (void *)(intptr_t)i);
+        MNTHR_SPAWN(buf, worker0, (void *)(intptr_t)i);
     }
 
 end:
@@ -250,10 +250,10 @@ main(void)
     }
 #endif
 
-    (void)mrkthr_init();
-    (void)MRKTHR_SPAWN("run0", run0);
-    (void)mrkthr_loop();
-    (void)mrkthr_fini();
+    (void)mnthr_init();
+    (void)MNTHR_SPAWN("run0", run0);
+    (void)mnthr_loop();
+    (void)mnthr_fini();
     return 0;
 }
 

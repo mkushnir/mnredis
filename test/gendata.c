@@ -10,8 +10,8 @@
 #   include <malloc.h>
 #endif
 
-#include <mrkcommon/dumpm.h>
-#include <mrkcommon/util.h>
+#include <mncommon/dumpm.h>
+#include <mncommon/util.h>
 
 #include "diag.h"
 
@@ -53,7 +53,7 @@ UNUSED
 static void
 myinfo(UNUSED int sig)
 {
-    //mrkthr_dump_all_ctxes();
+    //mnthr_dump_all_ctxes();
 }
 
 

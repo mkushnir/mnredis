@@ -8,14 +8,14 @@
 #include <sys/socket.h>
 
 //#define TRRET_DEBUG
-#include <mrkcommon/dumpm.h>
-#include <mrkcommon/util.h>
+#include <mncommon/dumpm.h>
+#include <mncommon/util.h>
 
 #include "mnredis_private.h"
 
 #include "diag.h"
 
-void mndiag_mrkcommon_str(int, char *, size_t);
+void mndiag_mncommon_str(int, char *, size_t);
 
 static mnbytes_t _echo = BYTES_INITIALIZER("ECHO");
 static mnbytes_t _ping = BYTES_INITIALIZER("PING");
@@ -395,7 +395,7 @@ mnredis_response_new(void)
 {
     mnredis_response_t *res;
 
-    if (MRKUNLIKELY((res = malloc(sizeof(mnredis_response_t))) == NULL)) {
+    if (MNUNLIKELY((res = malloc(sizeof(mnredis_response_t))) == NULL)) {
         FAIL("malloc");
     }
     res->val.ty = MNREDIS_UNDEF;
@@ -435,14 +435,14 @@ static void
 mnredis_request_init(mnredis_request_t *req, size_t nargs)
 {
     STQUEUE_ENTRY_INIT(link, req);
-    if (MRKUNLIKELY(array_init(&req->args,
+    if (MNUNLIKELY(array_init(&req->args,
                                sizeof(mnbytes_t *),
                                nargs,
                                NULL,
                                (array_finalizer_t)bytes_decref) != 0)) {
         FAIL("array_init");
     }
-    MRKTHR_SIGNAL_INIT(&req->recv_signal);
+    MNTHR_SIGNAL_INIT(&req->recv_signal);
     req->resp = NULL;
 }
 
@@ -451,7 +451,7 @@ static void
 mnredis_request_fini(mnredis_request_t *req)
 {
     STQUEUE_ENTRY_FINI(link, req);
-    mrkthr_signal_fini(&req->recv_signal);
+    mnthr_signal_fini(&req->recv_signal);
     (void)array_fini(&req->args);
     mnredis_response_destroy(&req->resp);
 }
@@ -462,7 +462,7 @@ mnredis_request_new(size_t nargs)
 {
     mnredis_request_t *res;
 
-    if (MRKUNLIKELY((res = malloc(sizeof(mnredis_request_t))) == NULL)) {
+    if (MNUNLIKELY((res = malloc(sizeof(mnredis_request_t))) == NULL)) {
         FAIL("malloc");
     }
     mnredis_request_init(res, nargs);
@@ -492,7 +492,7 @@ mnredis_request_destroy(mnredis_request_t **req)
  *  - MNREDIS_RESPONSE_ERROR response parse error
  *  - MNREDIS_<CMD> + 1 connection closed
  *  - MNREDIS_<CMD> + 2 internal retry interrupted
- *  - MNREDIS_<CMD> + 3 other, possibly MRKTHR_CO_RC_*, see mrkthr.h
+ *  - MNREDIS_<CMD> + 3 other, possibly MNTHR_CO_RC_*, see mnthr.h
  *  - MNREDIS_<CMD> + 10 command-specific error (parameters, types, etc)
  *
  *  In general, everything other than 0 should signal a non-recoverable
@@ -510,7 +510,7 @@ mnredis_request_destroy(mnredis_request_t **req)
 
 
 #define _MNREDIS_CMD_VA_ARGS0                          \
-    assert(nargs > 0 && nargs <= MRKMAXASZ);           \
+    assert(nargs > 0 && nargs <= MNMAXASZ);           \
     req = mnredis_request_new(countof(args) + nargs);  \
     va_list ap;                                        \
     for (a = array_first(&req->args, &it);             \
@@ -531,7 +531,7 @@ mnredis_request_destroy(mnredis_request_t **req)
 
 
 #define _MNREDIS_CMD_VA_ARGS1                                          \
-    assert(nargs > 0 && nargs <= MRKMAXASZ);                           \
+    assert(nargs > 0 && nargs <= MNMAXASZ);                           \
     req = mnredis_request_new(countof(args) + nargs);                  \
     va_list ap;                                                        \
     int64_t _mnredis_cmd_va_args1_last_int;                            \
@@ -573,16 +573,16 @@ mnredis_request_destroy(mnredis_request_t **req)
      */                                                                \
 enqueue:                                                               \
     STQUEUE_ENQUEUE(&ctx->conn.requests_out, link, req);               \
-    mrkthr_signal_send(&ctx->conn.send_signal);                        \
-    if ((res = mrkthr_signal_subscribe(&req->recv_signal)) != 0) {     \
-        assert(!mrkthr_signal_has_owner(&req->recv_signal));           \
+    mnthr_signal_send(&ctx->conn.send_signal);                        \
+    if ((res = mnthr_signal_subscribe(&req->recv_signal)) != 0) {     \
+        assert(!mnthr_signal_has_owner(&req->recv_signal));           \
         if (res == (int)MNREDIS_CTX_FINI) {                            \
             res = ecode + 1;                                           \
             goto end0;                                                 \
         } else if (res == (int)MNREDIS_CTX_RECONNECT) {                \
-            mrkthr_set_retval(0);                                      \
+            mnthr_set_retval(0);                                      \
             while (ctx->conn.fd == -1) {                               \
-                if ((res = mrkthr_sleep(1001)) != 0) {                 \
+                if ((res = mnthr_sleep(1001)) != 0) {                 \
                     res = ecode + 2;                                   \
                     goto end0;                                         \
                 }                                                      \
@@ -726,7 +726,7 @@ mnredis_set(mnredis_ctx_t *ctx,
         if (flags & MNREDIS_EXPIRE_MASK) {
             mnbytes_t **a;
 
-            if (MRKUNLIKELY(array_ensure_len(&req->args,
+            if (MNUNLIKELY(array_ensure_len(&req->args,
                                              req->args.elnum + 2,
                                              ARRAY_FLAG_SAVE) != 0)) {
                 FAIL("array_incr");
@@ -743,7 +743,7 @@ mnredis_set(mnredis_ctx_t *ctx,
         if (flags & MNREDIS_NX) {
             mnbytes_t **a;
 
-            if (MRKUNLIKELY(array_ensure_len(&req->args,
+            if (MNUNLIKELY(array_ensure_len(&req->args,
                                              req->args.elnum + 1,
                                              ARRAY_FLAG_SAVE) != 0)) {
                 FAIL("array_incr");
@@ -756,7 +756,7 @@ mnredis_set(mnredis_ctx_t *ctx,
         if (flags & MNREDIS_XX) {
             mnbytes_t **a;
 
-            if (MRKUNLIKELY(array_ensure_len(&req->args,
+            if (MNUNLIKELY(array_ensure_len(&req->args,
                                              req->args.elnum + 1,
                                              ARRAY_FLAG_SAVE) != 0)) {
                 FAIL("array_incr");
@@ -1426,10 +1426,10 @@ mnredis_send_thread_worker(UNUSED int argc, UNUSED void **argv)
 
             STQUEUE_DEQUEUE(&ctx->conn.requests_out, link);
             STQUEUE_ENTRY_FINI(link, req);
-            if (MRKLIKELY(mrkthr_signal_has_owner(&req->recv_signal))) {
+            if (MNLIKELY(mnthr_signal_has_owner(&req->recv_signal))) {
                 STQUEUE_ENQUEUE(&ctx->conn.requests_in, link, req);
 
-                if (MRKUNLIKELY(
+                if (MNUNLIKELY(
                         mnredis_pack_alen(&ctx->conn.out,
                                           (int64_t)req->args.elnum) <= 0)) {
                     /*
@@ -1440,7 +1440,7 @@ mnredis_send_thread_worker(UNUSED int argc, UNUSED void **argv)
                 for (a = array_first(&req->args, &it);
                      a != NULL;
                      a = array_next(&req->args, &it)) {
-                    if (MRKUNLIKELY(mnredis_pack_bstrz(&ctx->conn.out,
+                    if (MNUNLIKELY(mnredis_pack_bstrz(&ctx->conn.out,
                                                        *a) <= 0)) {
                         /*
                          * XXX
@@ -1460,8 +1460,8 @@ mnredis_send_thread_worker(UNUSED int argc, UNUSED void **argv)
             if ((res = bytestream_produce_data(&ctx->conn.out, ctx->conn.fp)) != 0) {
 #ifdef TRRET_DEBUG
                 char buf[64];
-                if (MNDIAG_GET_LIBRARY(res) == MNDIAG_LIBRARY_MRKCOMMON) {
-                    mndiag_mrkcommon_str(res, buf, sizeof(buf));
+                if (MNDIAG_GET_LIBRARY(res) == MNDIAG_LIBRARY_MNCOMMON) {
+                    mndiag_mncommon_str(res, buf, sizeof(buf));
                 } else {
                     mndiag_local_str(res, buf, sizeof(buf));
                 }
@@ -1471,18 +1471,18 @@ mnredis_send_thread_worker(UNUSED int argc, UNUSED void **argv)
             bytestream_rewind(&ctx->conn.out);
         }
 
-        if ((res = mrkthr_signal_subscribe(&ctx->conn.send_signal)) != 0) {
+        if ((res = mnthr_signal_subscribe(&ctx->conn.send_signal)) != 0) {
 #ifdef TRRET_DEBUG
             char buf[64];
             mndiag_local_str(res, buf, sizeof(buf));
-            CTRACE("mrkthr_signal_subscribe error: %s", buf);
+            CTRACE("mnthr_signal_subscribe error: %s", buf);
 #endif
             break;
         }
     }
 
-    mrkthr_signal_fini(&ctx->conn.send_signal);
-    mrkthr_decabac(ctx->conn.send_thread);
+    mnthr_signal_fini(&ctx->conn.send_signal);
+    mnthr_decabac(ctx->conn.send_thread);
     ctx->conn.send_thread = NULL;
 #ifdef TRRET_DEBUG
     CTRACE("Exiting send thread");
@@ -1511,7 +1511,7 @@ mnredis_recv_thread_worker(UNUSED int argc, UNUSED void **argv)
                                           &resp)) != 0) {
             int rc;
 
-            rc = mrkthr_get_retval();
+            rc = mnthr_get_retval();
             if (res == -1 ||
                 res == (int)MNREDIS_PARSE_VALUE_STREAM_ERROR ||
                 rc != 0) {
@@ -1525,7 +1525,7 @@ mnredis_recv_thread_worker(UNUSED int argc, UNUSED void **argv)
             /**/
         }
         recycled = bytestream_recycle(&ctx->conn.in, 1, SPOS(&ctx->conn.in));
-        if (MRKUNLIKELY((req = STQUEUE_HEAD(&ctx->conn.requests_in)) == NULL)) {
+        if (MNUNLIKELY((req = STQUEUE_HEAD(&ctx->conn.requests_in)) == NULL)) {
             /*
              * response without request?
              */
@@ -1541,8 +1541,8 @@ mnredis_recv_thread_worker(UNUSED int argc, UNUSED void **argv)
              */
             //STQUEUE_ENTRY_FINI(link, req);
             req->resp = resp;
-            if (mrkthr_signal_has_owner(&req->recv_signal)) {
-                mrkthr_signal_send(&req->recv_signal);
+            if (mnthr_signal_has_owner(&req->recv_signal)) {
+                mnthr_signal_send(&req->recv_signal);
             } else {
                 /*
                  * no owver, request timed out?
@@ -1552,7 +1552,7 @@ mnredis_recv_thread_worker(UNUSED int argc, UNUSED void **argv)
         }
     }
 
-    mrkthr_decabac(ctx->conn.recv_thread);
+    mnthr_decabac(ctx->conn.recv_thread);
     ctx->conn.recv_thread = NULL;
 #ifdef TRRET_DEBUG
     CTRACE("Exiting recv thread");
@@ -1568,7 +1568,7 @@ mnredis_ctx_connect(mnredis_ctx_t *ctx)
 
     res = 0;
 
-    if ((ctx->conn.fd = mrkthr_socket_connect(BCDATA(ctx->conn.host),
+    if ((ctx->conn.fd = mnthr_socket_connect(BCDATA(ctx->conn.host),
                                               BCDATA(ctx->conn.port),
                                               PF_UNSPEC)) == -1) {
         res = MNREDIS_CTX_CONNECT + 1;
@@ -1576,15 +1576,15 @@ mnredis_ctx_connect(mnredis_ctx_t *ctx)
     }
     ctx->conn.fp = (void *)(intptr_t)ctx->conn.fd;
 
-    ctx->conn.recv_thread = MRKTHR_SPAWN("mnrdrcv",
+    ctx->conn.recv_thread = MNTHR_SPAWN("mnrdrcv",
                                          mnredis_recv_thread_worker,
                                          ctx);
-    mrkthr_incabac(ctx->conn.recv_thread);
+    mnthr_incabac(ctx->conn.recv_thread);
 
-    ctx->conn.send_thread = MRKTHR_SPAWN("mnrdsnd",
+    ctx->conn.send_thread = MNTHR_SPAWN("mnrdsnd",
                                          mnredis_send_thread_worker,
                                          ctx);
-    mrkthr_incabac(ctx->conn.send_thread);
+    mnthr_incabac(ctx->conn.send_thread);
 
 end:
     return res;
@@ -1603,22 +1603,22 @@ mnredis_ctx_flush_queues(mnredis_ctx_t *ctx, int code, bool join)
     if (join) {
         while ((req = STQUEUE_HEAD(&ctx->conn.requests_out)) != NULL) {
             STQUEUE_DEQUEUE(&ctx->conn.requests_out, link);
-            (void)mrkthr_signal_error_and_join(&req->recv_signal, code);
+            (void)mnthr_signal_error_and_join(&req->recv_signal, code);
         }
 
         while ((req = STQUEUE_HEAD(&ctx->conn.requests_in)) != NULL) {
             STQUEUE_DEQUEUE(&ctx->conn.requests_in, link);
-            (void)mrkthr_signal_error_and_join(&req->recv_signal, code);
+            (void)mnthr_signal_error_and_join(&req->recv_signal, code);
         }
     } else {
         while ((req = STQUEUE_HEAD(&ctx->conn.requests_out)) != NULL) {
             STQUEUE_DEQUEUE(&ctx->conn.requests_out, link);
-            mrkthr_signal_error(&req->recv_signal, code);
+            mnthr_signal_error(&req->recv_signal, code);
         }
 
         while ((req = STQUEUE_HEAD(&ctx->conn.requests_in)) != NULL) {
             STQUEUE_DEQUEUE(&ctx->conn.requests_in, link);
-            mrkthr_signal_error(&req->recv_signal, code);
+            mnthr_signal_error(&req->recv_signal, code);
         }
     }
 }
@@ -1631,11 +1631,11 @@ mnredis_ctx_close(mnredis_ctx_t *ctx)
         ctx->conn.fd = -1;
         ctx->conn.fp = NULL;
         if (ctx->conn.recv_thread != NULL) {
-            mrkthr_set_interrupt_and_join(ctx->conn.recv_thread);
+            mnthr_set_interrupt_and_join(ctx->conn.recv_thread);
             assert(ctx->conn.recv_thread == NULL);
         }
         if (ctx->conn.send_thread != NULL) {
-            mrkthr_set_interrupt_and_join(ctx->conn.send_thread);
+            mnthr_set_interrupt_and_join(ctx->conn.send_thread);
             assert(ctx->conn.send_thread == NULL);
         }
     }
@@ -1648,7 +1648,7 @@ mnredis_ctx_fini(mnredis_ctx_t *ctx)
     mnredis_ctx_flush_queues(ctx, MNREDIS_CTX_FINI, true);
     mnredis_ctx_close(ctx);
 
-    mrkthr_sema_fini(&ctx->conn.sema);
+    mnthr_sema_fini(&ctx->conn.sema);
     BYTES_DECREF(&ctx->conn.host);
     BYTES_DECREF(&ctx->conn.port);
     bytestream_fini(&ctx->conn.in);
@@ -1685,17 +1685,17 @@ mnredis_ctx_init(mnredis_ctx_t *ctx,
     ctx->conn.fd = -1;
     ctx->conn.fp = NULL;
     ctx->conn.send_thread = NULL;
-    MRKTHR_SIGNAL_INIT(&ctx->conn.send_signal);
-    mrkthr_sema_init(&ctx->conn.sema, 1);
+    MNTHR_SIGNAL_INIT(&ctx->conn.send_signal);
+    mnthr_sema_init(&ctx->conn.sema, 1);
     ctx->conn.recv_thread = NULL;
-    if (MRKUNLIKELY(bytestream_init(&ctx->conn.in, growsz) != 0)) {
+    if (MNUNLIKELY(bytestream_init(&ctx->conn.in, growsz) != 0)) {
         FAIL("bytestream_init");
     }
-    ctx->conn.in.read_more = mrkthr_bytestream_read_more;
-    if (MRKUNLIKELY(bytestream_init(&ctx->conn.out, growsz) != 0)) {
+    ctx->conn.in.read_more = mnthr_bytestream_read_more;
+    if (MNUNLIKELY(bytestream_init(&ctx->conn.out, growsz) != 0)) {
         FAIL("bytestream_init");
     }
-    ctx->conn.out.write = mrkthr_bytestream_write;
+    ctx->conn.out.write = mnthr_bytestream_write;
     STQUEUE_INIT(&ctx->conn.requests_out);
     STQUEUE_INIT(&ctx->conn.requests_in);
 }

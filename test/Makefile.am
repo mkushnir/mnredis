@@ -29,25 +29,25 @@ endif
 nodist_testfoo_SOURCES = diag.c
 testfoo_SOURCES = testfoo.c
 testfoo_CFLAGS = $(DEBUG_FLAGS) -Wall -Wextra -Werror -std=c99 @_GNU_SOURCE_MACRO@ -I$(top_srcdir)/test -I$(top_srcdir)/src -I$(top_srcdir) -I$(includedir)
-#testfoo_LDFLAGS = -L$(libdir) -lmrkcommon -L$(top_srcdir)/src/.libs -lmnredis
-testfoo_LDFLAGS = -L$(top_srcdir)/src/.libs -lmnredis -L$(libdir) -lmrkapp -lmrkthr -lmrkcommon -lmndiag
+#testfoo_LDFLAGS = -L$(libdir) -lmncommon -L$(top_srcdir)/src/.libs -lmnredis
+testfoo_LDFLAGS = -L$(top_srcdir)/src/.libs -lmnredis -L$(libdir) -lmnapp -lmnthr -lmncommon -lmndiag
 
 nodist_testfault_SOURCES = diag.c
 testfault_SOURCES = testfault.c
 testfault_CFLAGS = $(DEBUG_FLAGS) -Wall -Wextra -Werror -std=c99 @_GNU_SOURCE_MACRO@ -I$(top_srcdir)/test -I$(top_srcdir)/src -I$(top_srcdir) -I$(includedir)
-#testfault_LDFLAGS = -L$(libdir) -lmrkcommon -L$(top_srcdir)/src/.libs -lmnredis
-testfault_LDFLAGS = -L$(top_srcdir)/src/.libs -lmnredis -L$(libdir) -lmrkapp -lmrkthr -lmrkcommon -lmndiag
+#testfault_LDFLAGS = -L$(libdir) -lmncommon -L$(top_srcdir)/src/.libs -lmnredis
+testfault_LDFLAGS = -L$(top_srcdir)/src/.libs -lmnredis -L$(libdir) -lmnapp -lmnthr -lmncommon -lmndiag
 
 nodist_testcompleteness_SOURCES = diag.c
 testcompleteness_SOURCES = testcompleteness.c
 testcompleteness_CFLAGS = $(DEBUG_FLAGS) -Wall -Wextra -Werror -std=c99 @_GNU_SOURCE_MACRO@ -I$(top_srcdir)/test -I$(top_srcdir)/src -I$(top_srcdir) -I$(includedir)
-#testcompleteness_LDFLAGS = -L$(libdir) -lmrkcommon -L$(top_srcdir)/src/.libs -lmnredis
-testcompleteness_LDFLAGS = -L$(top_srcdir)/src/.libs -lmnredis -L$(libdir) -lmrkapp -lmrkthr -lmrkcommon -lmndiag
+#testcompleteness_LDFLAGS = -L$(libdir) -lmncommon -L$(top_srcdir)/src/.libs -lmnredis
+testcompleteness_LDFLAGS = -L$(top_srcdir)/src/.libs -lmnredis -L$(libdir) -lmnapp -lmnthr -lmncommon -lmndiag
 
 nodist_gendata_SOURCES = diag.c
 gendata_SOURCES = gendata.c
 gendata_CFLAGS = $(DEBUG_FLAGS) -Wall -Wextra -Werror -std=c99 @_GNU_SOURCE_MACRO@ -I$(top_srcdir)/test -I$(top_srcdir)/src -I$(top_srcdir) -I$(includedir)
-gendata_LDFLAGS = -L$(libdir) -lmrkcommon  -lmndiag
+gendata_LDFLAGS = -L$(libdir) -lmncommon  -lmndiag
 #gendata_LDFLAGS = 
 
 diag.c diag.h: $(diags)

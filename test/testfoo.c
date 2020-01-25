@@ -4,11 +4,11 @@
 #include <inttypes.h> /* strtoimax() */
 #include <signal.h>
 
-#include <mrkcommon/bytes.h>
-#include <mrkcommon/dumpm.h>
-#include <mrkcommon/util.h>
+#include <mncommon/bytes.h>
+#include <mncommon/dumpm.h>
+#include <mncommon/util.h>
 
-#include <mrkthr.h>
+#include <mnthr.h>
 
 #include <mnredis.h>
 
@@ -32,7 +32,7 @@ UNUSED
 static void
 myinfo(UNUSED int sig)
 {
-    mrkthr_dump_all_ctxes();
+    mnthr_dump_all_ctxes();
 }
 
 
@@ -266,7 +266,7 @@ _test5(UNUSED int argc, UNUSED void **argv)
         res = mnredis_incr(ctx, key, &rv);
         assert(res == 0);
         ++_test5_i;
-        //if (mrkthr_yield() != 0) {
+        //if (mnthr_yield() != 0) {
         //    break;
         //}
     }
@@ -297,7 +297,7 @@ test5(void)
     res = mnredis_del(&ctx, qwe);
     assert(res == 0);
     for (i = 0; i < TEST5_N; ++i) {
-        MRKTHR_SPAWN(NULL, _test5, &ctx, qwe, (void *)(intptr_t)TEST5_M);
+        MNTHR_SPAWN(NULL, _test5, &ctx, qwe, (void *)(intptr_t)TEST5_M);
     }
     for (n = 0; n != (TEST5_N * TEST5_M);) {
         mnbytes_t *rv;
@@ -312,7 +312,7 @@ test5(void)
             TRACE("rv was NULL");
         }
         BYTES_DECREF(&rv);
-        if (mrkthr_sleep(1000) != 0) {
+        if (mnthr_sleep(1000) != 0) {
             break;
         }
     }
@@ -336,7 +336,7 @@ _mnredis_set(UNUSED int argc, UNUSED void **argv)
     flags = (uintptr_t)argv[3];
 
     res = mnredis_set(ctx, key, value, flags);
-    MRKTHRET(res);
+    MNTHRET(res);
 }
 
 
@@ -354,7 +354,7 @@ _mnredis_get(UNUSED int argc, UNUSED void **argv)
     rv = argv[2];
 
     res = mnredis_get(ctx, key, rv);
-    MRKTHRET(res);
+    MNTHRET(res);
 }
 
 
@@ -377,11 +377,11 @@ test6(void)
     assert(res == 0);
 
     rv = NULL;
-    res = MRKTHR_WAIT_FOR(1000, NULL, _mnredis_get, &ctx, qwe, &rv);
+    res = MNTHR_WAIT_FOR(1000, NULL, _mnredis_get, &ctx, qwe, &rv);
     CTRACE("res=%d rv=%s", res, BDATASAFE(rv));
     BYTES_DECREF(&rv);
 
-    res = MRKTHR_WAIT_FOR(1000,
+    res = MNTHR_WAIT_FOR(1000,
                           NULL,
                           _mnredis_set,
                           &ctx,
@@ -391,7 +391,7 @@ test6(void)
     CTRACE("res=%d", res);
 
     rv = NULL;
-    res = MRKTHR_WAIT_FOR(1000, NULL, _mnredis_get, &ctx, qwe, &rv);
+    res = MNTHR_WAIT_FOR(1000, NULL, _mnredis_get, &ctx, qwe, &rv);
     CTRACE("res=%d rv=%s", res, BDATASAFE(rv));
     BYTES_DECREF(&rv);
 
@@ -433,7 +433,7 @@ _test7(UNUSED int argc, UNUSED void **argv)
 
         BYTES_DECREF(&k);
         ++_test7_i;
-        //if (mrkthr_yield() != 0) {
+        //if (mnthr_yield() != 0) {
         //    break;
         //}
     }
@@ -456,7 +456,7 @@ test7(void)
     assert(res == 0);
 
     for (i = 0; i < TEST7_N; ++i) {
-        MRKTHR_SPAWN(NULL,
+        MNTHR_SPAWN(NULL,
                      _test7,
                      &ctx,
                      qwe,
@@ -464,7 +464,7 @@ test7(void)
                      (void *)(intptr_t)TEST7_M);
     }
     while (_test7_i != TEST7_N * TEST7_M) {
-        mrkthr_sleep(1000);
+        mnthr_sleep(1000);
         CTRACE("_test7_i=%d", _test7_i);
     }
     mnredis_ctx_fini(&ctx);
@@ -497,9 +497,9 @@ main(void)
         return 1;
     }
 #endif
-    (void)mrkthr_init();
-    (void)MRKTHR_SPAWN("run0", run0);
-    (void)mrkthr_loop();
-    (void)mrkthr_fini();
+    (void)mnthr_init();
+    (void)MNTHR_SPAWN("run0", run0);
+    (void)mnthr_loop();
+    (void)mnthr_fini();
     return 0;
 }

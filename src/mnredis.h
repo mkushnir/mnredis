@@ -10,13 +10,13 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-#include <mrkcommon/array.h>
-#include <mrkcommon/bytes.h>
-#include <mrkcommon/bytestream.h>
-#include <mrkcommon/stqueue.h>
-#include <mrkcommon/util.h>
+#include <mncommon/array.h>
+#include <mncommon/bytes.h>
+#include <mncommon/bytestream.h>
+#include <mncommon/stqueue.h>
+#include <mncommon/util.h>
 
-#include <mrkthr.h>
+#include <mnthr.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -64,7 +64,7 @@ typedef struct _mnredis_response {
 typedef struct _mnredis_request {
     STQUEUE_ENTRY(_mnredis_request, link);
     mnarray_t args;
-    mrkthr_signal_t recv_signal;
+    mnthr_signal_t recv_signal;
     mnredis_response_t *resp;
 } mnredis_request_t;
 
@@ -74,12 +74,12 @@ typedef struct _mnredis_connection {
     mnbytes_t *port;
     int fd; /* connect socket */
     void *fp;
-    mrkthr_ctx_t *send_thread;
-    mrkthr_signal_t send_signal;
-    mrkthr_ctx_t *recv_thread;
+    mnthr_ctx_t *send_thread;
+    mnthr_signal_t send_signal;
+    mnthr_ctx_t *recv_thread;
     mnbytestream_t in;
     mnbytestream_t out;
-    mrkthr_sema_t sema;
+    mnthr_sema_t sema;
     STQUEUE(_mnredis_request, requests_out);
     STQUEUE(_mnredis_request, requests_in);
 } mnredis_connection_t;
@@ -121,7 +121,7 @@ int mnredis_strlen(mnredis_ctx_t *, mnbytes_t *, int64_t *);
 
 int mnredis_hdel(mnredis_ctx_t *, mnbytes_t *, int, ...);
 #define MNREDIS_HDEL(ctx, key, ...) \
-    mnredis_hdel(ctx, key, MRKASZ(__VA_ARGS__), ##__VA_ARGS__)
+    mnredis_hdel(ctx, key, MNASZ(__VA_ARGS__), ##__VA_ARGS__)
 int mnredis_hexists(mnredis_ctx_t *, mnbytes_t *, mnbytes_t *, int64_t *);
 int mnredis_hget(mnredis_ctx_t *, mnbytes_t *, mnbytes_t *, mnbytes_t **);
 int mnredis_hincrby(mnredis_ctx_t *,
@@ -132,10 +132,10 @@ int mnredis_hincrby(mnredis_ctx_t *,
 int mnredis_hlen(mnredis_ctx_t *, mnbytes_t *, int64_t *);
 int mnredis_hmget(mnredis_ctx_t *, mnarray_t **, mnbytes_t *, int, ...);
 #define MNREDIS_HMGET(ctx, rv, key, ...) \
-    mnredis_hmget(ctx, rv, key, MRKASZ(__VA_ARGS__), ##__VA_ARGS__)
+    mnredis_hmget(ctx, rv, key, MNASZ(__VA_ARGS__), ##__VA_ARGS__)
 int mnredis_hmset(mnredis_ctx_t *, mnbytes_t *, int, ...);
 #define MNREDIS_HMSET(ctx, key, ...) \
-    mnredis_hmget(ctx, key, MRKASZ(__VA_ARGS__), ##__VA_ARGS__)
+    mnredis_hmget(ctx, key, MNASZ(__VA_ARGS__), ##__VA_ARGS__)
 int mnredis_hset(mnredis_ctx_t *,
                  mnbytes_t *,
                  mnbytes_t *,
@@ -144,10 +144,10 @@ int mnredis_hset(mnredis_ctx_t *,
 int mnredis_hstrlen(mnredis_ctx_t *, mnbytes_t *, mnbytes_t *, int64_t *);
 int mnredis_blpop(mnredis_ctx_t *, mnbytes_t **, mnbytes_t **, int, ...);
 #define MNREDIS_BLPOP(ctx, rk, rv, ...) \
-    mnredis_blpop(ctx, rk, rv,  MRKASZ(__VA_ARGS__), ##__VA_ARGS__)
+    mnredis_blpop(ctx, rk, rv,  MNASZ(__VA_ARGS__), ##__VA_ARGS__)
 int mnredis_brpop(mnredis_ctx_t *, mnbytes_t **, mnbytes_t **, int, ...);
 #define MNREDIS_BRPOP(ctx, rk, rv, ...) \
-    mnredis_brpop(ctx, rk, rv,  MRKASZ(__VA_ARGS__), ##__VA_ARGS__)
+    mnredis_brpop(ctx, rk, rv,  MNASZ(__VA_ARGS__), ##__VA_ARGS__)
 int mnredis_brpoplpush(mnredis_ctx_t *,
                        mnbytes_t *,
                        mnbytes_t *,
@@ -179,11 +179,11 @@ int mnredis_lpop(mnredis_ctx_t *, mnbytes_t *, mnbytes_t **);
 int mnredis_rpop(mnredis_ctx_t *, mnbytes_t *, mnbytes_t **);
 int mnredis_lpush(mnredis_ctx_t *, int64_t *, mnbytes_t *, int, ...);
 #define MNREDIS_LPUSH(ctx, rv, key, ...)    \
-    mnredis_lpush(ctx, rv, key, MRKASZ(__VA_ARGS__), ##__VA_ARGS__)
+    mnredis_lpush(ctx, rv, key, MNASZ(__VA_ARGS__), ##__VA_ARGS__)
 int mnredis_lpushx(mnredis_ctx_t *, mnbytes_t *, mnbytes_t *, int64_t *);
 int mnredis_rpush(mnredis_ctx_t *, int64_t *, mnbytes_t *, int, ...);
 #define MNREDIS_RPUSH(ctx, rv, key, ...)    \
-    mnredis_rpush(ctx, rv, key, MRKASZ(__VA_ARGS__), ##__VA_ARGS__)
+    mnredis_rpush(ctx, rv, key, MNASZ(__VA_ARGS__), ##__VA_ARGS__)
 int mnredis_rpushx(mnredis_ctx_t *, mnbytes_t *, mnbytes_t *, int64_t *);
 int mnredis_ltrim(mnredis_ctx_t *, mnbytes_t *, int64_t, int64_t);
 int mnredis_lrange(mnredis_ctx_t *,

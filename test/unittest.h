@@ -3,7 +3,7 @@
 
 #include <stdlib.h>
 #include <time.h>
-//#include "mrkcommon/util.h"
+//#include "mncommon/util.h"
 #ifndef countof
 #   define countof(a) (sizeof(a)/sizeof(a[0]))
 #endif
