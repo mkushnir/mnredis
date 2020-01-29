@@ -14,7 +14,7 @@
 
 #include "diag.h"
 
-#include "unittest.h"
+#include <mncommon/unittest.h>
 
 #ifndef NDEBUG
 const char *_malloc_options = "AJ";
@@ -288,6 +288,7 @@ test5(void)
         mnbytes_t *value;
         mnbytes_t *expected;
     } data[] = {
+        {0, NULL, NULL},
     };
     UNITTEST_PROLOG;
     mnredis_ctx_init(&ctx, &TEST_REDIS, &_6379, 4096);

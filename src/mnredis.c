@@ -431,6 +431,14 @@ mnredis_parse_response(mnbytestream_t *bs, void *fp, mnredis_response_t **resp)
 /*
  * mnredis_request_t
  */
+static int
+mnredis_request_args_fini(mnbytes_t **a)
+{
+    BYTES_DECREF(a);
+    return 0;
+}
+
+
 static void
 mnredis_request_init(mnredis_request_t *req, size_t nargs)
 {
@@ -439,7 +447,7 @@ mnredis_request_init(mnredis_request_t *req, size_t nargs)
                                sizeof(mnbytes_t *),
                                nargs,
                                NULL,
-                               (array_finalizer_t)bytes_decref) != 0)) {
+                               (array_finalizer_t)mnredis_request_args_fini) != 0)) {
         FAIL("array_init");
     }
     MNTHR_SIGNAL_INIT(&req->recv_signal);
@@ -1503,7 +1511,7 @@ mnredis_recv_thread_worker(UNUSED int argc, UNUSED void **argv)
         int res;
         mnredis_response_t *resp;
         mnredis_request_t *req;
-        off_t recycled;
+        UNUSED off_t recycled;
 
         resp = NULL;
         if ((res = mnredis_parse_response(&ctx->conn.in,
